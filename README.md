@@ -1,8 +1,12 @@
-# murmR
+<p align="center">
+  <img src="assets/branding/murmr-logo-transparent.png" alt="murmr" width="320">
+</p>
+
+# murmr
 
 Speak into your phone; the words appear wherever your computer's cursor is.
 
-murmR turns an Android phone into a push-to-talk voice keyboard. Hold a button, talk, let go.
+murmr turns an Android phone into a push-to-talk voice keyboard. Hold a button, talk, let go.
 The phone transcribes the speech on-device and types the result into the paired computer. The
 computer sees an ordinary Bluetooth keyboard, so there is nothing to install on it.
 
@@ -48,6 +52,7 @@ android/                          Android Studio project (Kotlin, Jetpack Compos
     MainActivity.kt               permissions, service binding, Volume Down as PTT
 docs/architecture.md              design decisions and roadmap
 docs/testing.md                   Milestone 1 test protocol (50 consecutive dictations)
+assets/branding/                  logo (source for the launcher icon and in-app mark)
 CLAUDE.md                         working notes for Claude Code sessions
 ```
 
@@ -80,11 +85,11 @@ Gradle needs a JDK 17+; Android Studio's is at `<Android Studio>/jbr` if you hav
 
 ### Pair with the computer
 
-1. Open murmR and grant Microphone, Nearby devices, and Notifications.
+1. Open murmr and grant Microphone, Nearby devices, and Notifications.
 2. Wait for "Keyboard ready" under **Computer**.
 3. Tap **Make discoverable**. On the computer, open Bluetooth settings, add a device, and pick
    the phone. Confirm the pairing code on both ends.
-4. If the phone was paired with the computer before murmR existed, remove that pairing on the
+4. If the phone was paired with the computer before murmr existed, remove that pairing on the
    computer first and pair again so it picks up the keyboard service.
 5. Later sessions: tap the computer under **Paired devices** to reconnect, or connect from the
    computer's side.

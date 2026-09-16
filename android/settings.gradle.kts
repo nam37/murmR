@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "murmR"
+rootProject.name = "murmr"
 include(":app")

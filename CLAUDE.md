@@ -1,4 +1,4 @@
-# murmR
+# murmr
 
 Android app that turns a phone into a push-to-talk voice keyboard: on-device speech-to-text on
 the phone, text typed into a paired computer over Bluetooth HID. Product overview in README.md,

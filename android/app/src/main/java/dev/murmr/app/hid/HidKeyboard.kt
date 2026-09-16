@@ -193,9 +193,9 @@ class HidKeyboard(private val context: Context) {
 
     private fun registerApp() {
         val sdp = BluetoothHidDeviceAppSdpSettings(
-            "murmR",
-            "murmR voice keyboard",
-            "murmR",
+            "murmr",
+            "murmr voice keyboard",
+            "murmr",
             BluetoothHidDevice.SUBCLASS1_KEYBOARD,
             KEYBOARD_REPORT_DESCRIPTOR,
         )

@@ -1,4 +1,4 @@
-# murmR architecture
+# murmr architecture
 
 Last updated 2026-09-16.
 
@@ -41,7 +41,7 @@ reports at about 8 ms each so hosts do not drop keys.
 are OS-specific entry tricks (Windows Alt codes on numpad usages, Linux Ctrl+Shift+U) or the
 companion transport.
 
-**Pairing quirk.** A computer that was paired with the phone before murmR registered its
+**Pairing quirk.** A computer that was paired with the phone before murmr registered its
 keyboard may not know about the HID service. Removing and re-adding the pairing fixes it.
 
 **Delivery is behind an interface.** `Transport` (`transport/Transport.kt`) exposes
@@ -73,7 +73,7 @@ service) and its URL typed into the prompt alongside the dictated text:
 
 Rules:
 
-- The uploader is separate from delivery. It returns a URL; murmR includes it in the text.
+- The uploader is separate from delivery. It returns a URL; murmr includes it in the text.
   Replacing the server later does not touch Bluetooth typing.
 - Whether the receiving app fetches URLs varies by app and must be tested per app before this
   becomes a default flow. A link in a prompt is not an attachment.

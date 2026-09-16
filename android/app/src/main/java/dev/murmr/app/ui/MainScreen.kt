@@ -1,5 +1,6 @@
 package dev.murmr.app.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -28,8 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.murmr.app.R
 import dev.murmr.app.hid.HidKeyboard
 import dev.murmr.app.hid.HostDevice
 import dev.murmr.app.service.PttPhase
@@ -61,7 +65,17 @@ fun MainScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text("murmR", style = MaterialTheme.typography.headlineMedium)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.murmr_mark),
+                        contentDescription = null,
+                        modifier = Modifier.height(36.dp),
+                    )
+                    Text("murmr", style = MaterialTheme.typography.headlineMedium)
+                }
                 if (permissionsDenied) {
                     Text(
                         "Microphone and Nearby devices permissions are required. " +

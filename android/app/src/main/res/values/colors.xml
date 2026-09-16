@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#1F2A44</color>
+    <!-- Warm white behind the teal mark, matching how the logo is presented. -->
+    <color name="ic_launcher_background">#F7F5F0</color>
+    <!-- Brand teal from the logo mark. -->
+    <color name="murmr_teal">#4A8578</color>
 </resources>

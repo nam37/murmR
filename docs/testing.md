@@ -1,6 +1,6 @@
 # Milestone 1: 50 consecutive dictations
 
-The first thing murmR has to prove is that hold, speak, release reliably puts the right text
+The first thing murmr has to prove is that hold, speak, release reliably puts the right text
 on the computer. This protocol produces that evidence. Run it before adding engines or features.
 
 ## Setup
@@ -11,7 +11,7 @@ Record once per run:
 - Computer OS and version; keyboard layout set to US
 - Target app: a plain text editor with autocorrect and auto-capitalisation off
   (Notepad on Windows, TextEdit in plain-text mode on macOS, gedit or Kate on Linux)
-- murmR build (git commit)
+- murmr build (git commit)
 
 ## Script
 
