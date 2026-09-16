@@ -89,10 +89,11 @@ Rules:
 | whisper.cpp via JNI | yes | no, chunked | medium | Accurate; tiny/base models are fast enough for short utterances. Android and iOS. |
 | Cloud APIs | no | yes | low | Ruled out for privacy and latency. |
 
-The engine is behind `SttEngine` (start, stop, cancel; events Ready, Partial, Final, Error), so
-swapping it is local to `stt/`. An own model would be a first-run download with a size shown,
-not baked into every install. It gets adopted on measured accuracy, battery, and
-release-to-text latency, not on model size.
+The engine is behind `SttEngine` (start, stop, cancel; events Ready, Partial, Final, Error) and
+owns continuity within a hold (see "Continuity lives in the engine"), so swapping it is local to
+`stt/`. An own model would be a first-run download with a size shown, not baked into every
+install. It gets adopted on measured accuracy, battery, and release-to-text latency, not on
+model size.
 
 **Offline policy.** `OfflinePolicy.REQUIRED` is the default. On Android 12+ the engine uses
 `createOnDeviceSpeechRecognizer` or fails with a message telling the user to install the
@@ -139,11 +140,9 @@ and a receiving web page (copy/paste only). Speech on iOS: SpeechAnalyzer/Speech
 the `SttEngine`, the `Transport`, and the push-to-talk state machine:
 
 ```
-IDLE --pttDown--> LISTENING --pttUp--> FINISHING --final or timeout--> TYPING --done--> IDLE
-                     |  ^                   |
-       recogniser    |  | restart           +-- error, nothing captured --> IDLE (error shown)
-       ended on its  +--+
-       own (pause)
+IDLE --pttDown--> LISTENING --pttUp--> FINISHING --Final--> TYPING --done--> IDLE
+                                          (grace)  |
+                                                   +-- Error (nothing captured) --> IDLE
 ```
 
 The activity binds to the service and renders `UiState`. Everything runs on the main thread:
@@ -152,15 +151,33 @@ The activity binds to the service and renders `UiState`. Everything runs on the 
 The service is `START_NOT_STICKY`. A microphone-type foreground service can only be started
 from the foreground on Android 14+, so a system-initiated restart would crash.
 
+### Continuity lives in the engine
+
+One hold is one dictation even though the platform recogniser wants to stop at every pause. The
+`SttEngine` owns this, not the service, so a future engine (sherpa-onnx, whisper.cpp) gets it
+for free and the service does not change:
+
+- **Android 13+ segmented session.** The engine asks for a session that survives pauses and
+  returns each phrase through `onSegmentResults`, plus automatic punctuation and capitalisation
+  (`EXTRA_ENABLE_FORMATTING`). When honoured, one hold is genuinely one session: no mid-hold
+  restarts, no earcons between phrases, sentence-aware capitals.
+- **Restart fallback.** When segmented mode is not honoured (older engines, or the extra is
+  ignored), the engine restarts the recogniser after each result and stitches the phrases into
+  one running transcript. A pause error within 700 ms is not restarted (tight-loop guard), and
+  restarts are capped. This is invisible to the service: either way it sees `Partial`s and one
+  `Final`.
+- **Stop timeout.** If no final arrives within 4 s of `stop()`, the engine forces one from what
+  it has, so a hold can never hang.
+
 ### Reliability rules
 
-- **One hold, many sessions.** If the recogniser ends on its own while the button is held
-  (silence timeout, no match), the text so far is kept and a new session starts. Everything is
-  typed once, on release. Nothing is typed mid-hold.
-- **Finishing timeout.** Five seconds after release the recogniser is cancelled and what was
-  captured is typed, with a note.
-- **Fast-fail guard.** A session that errors within 700 ms is not restarted, so a broken
-  microphone or speech service cannot loop.
+- **Release grace window.** On release the microphone stays open until 350 ms pass with no new
+  partial (cap 1.2 s), so a word still being spoken at release is captured, not clipped. The
+  button shows "Finishing" during this window.
+- **Nothing is typed mid-hold.** The engine emits one `Final` on stop; that is what is typed.
+- **Recogniser tones muted.** The media stream is muted for the duration of a hold, silencing
+  the platform's start/stop earcons and any restart click. Best effort, and it also mutes media
+  playback for that moment.
 - **Bluetooth follows the adapter.** Off at start or turned off later: the keyboard waits and
   re-registers when Bluetooth comes back.
 - **Caps Lock.** The host reports LED state through the keyboard output report. While Caps

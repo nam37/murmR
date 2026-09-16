@@ -21,8 +21,10 @@ Record once per run:
 |---|---|---|
 | 1-10 | Short phrases, 2 to 5 words | baseline |
 | 11-15 | Long passages, 30+ words | recogniser session length, key pacing |
-| 16-20 | A pause of 3+ seconds mid-sentence with the button held | segment accumulation across sessions |
-| 21-25 | Numbers, punctuation, a capitalised name, a quoted phrase | key map, Shift handling |
+| 16-20 | A pause of 3+ seconds mid-sentence with the button held | continuity across pauses: no click, no gap, no mid-sentence capital |
+| 21-25 | Numbers, punctuation, a capitalised name, a quoted phrase | key map, Shift handling, auto-punctuation |
+| 21a | A sentence that should end with a question mark | Android 13+ formatting adds punctuation |
+| 21b | Trail off a word right as you release the button | release grace window keeps the last word |
 | 26-28 | Quick taps under 300 ms with no speech | empty-result handling, no stuck phase |
 | 29-33 | Back-to-back dictations with under 1 s between | state machine re-entry |
 | 34-36 | Caps Lock on at the computer | LED report compensation |
@@ -51,6 +53,12 @@ logcat (`MurmrService: release-to-typed N ms`) or from a screen recording of bot
 
 ## Reading failures
 
+- Still hearing a click or chime between phrases mid-hold: tone muting failed (check the
+  `MurmrService` log for "could not mute"), or the earcon is on a stream other than media.
+- Mid-sentence capitals or no punctuation: the Android 13+ segmented session and formatting
+  are not honoured on this engine; the restart fallback is in use. Check the `AndroidSttEngine`
+  log for "segmented session not honoured".
+- Last word clipped at release: raise `GRACE_QUIET_MS`/`GRACE_MAX_MS` in `MurmrService`.
 - Wrong case only with Caps Lock on: the LED report is not arriving. Check the `HidKeyboard`
   log for "host caps lock".
 - Missing characters in long passages: raise `keyDelayMs` in `TextTyper`.

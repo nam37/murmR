@@ -2,18 +2,22 @@ package dev.murmr.app.stt
 
 import kotlinx.coroutines.flow.SharedFlow
 
-/** Events a speech-to-text engine reports during one push-to-talk session. */
+/** Events a speech-to-text engine reports during one push-to-talk hold. */
 sealed interface SttEvent {
     /** Microphone is open; the user can speak. */
     data object Ready : SttEvent
 
-    /** Best-guess transcript so far. May be revised by later partials or the final result. */
+    /**
+     * The running transcript so far, including any in-progress last phrase. Revised freely by
+     * later events. This is the full text for the hold, not just the latest phrase, so the UI
+     * can show it directly.
+     */
     data class Partial(val text: String) : SttEvent
 
-    /** Final transcript for the session. Empty when nothing was recognised. */
+    /** The complete transcript for the hold. Empty when nothing was recognised. */
     data class Final(val text: String) : SttEvent
 
-    /** The session ended without a result. */
+    /** The hold ended without a result. */
     data class Error(val message: String, val code: Int = -1) : SttEvent
 }
 
@@ -33,10 +37,15 @@ enum class OfflinePolicy {
 /**
  * A speech-to-text engine driven by push-to-talk.
  *
- * Contract: [start] opens the microphone and begins recognising; [stop] closes the microphone
- * and lets the engine finish, after which exactly one [SttEvent.Final] or [SttEvent.Error] is
- * emitted. [cancel] abandons the session without a result. Implementations decide their own
- * threading requirements; the platform engine needs the main thread.
+ * Contract: [start] opens the microphone and begins one continuous dictation; [stop] closes the
+ * microphone and lets the engine finish, after which exactly one [SttEvent.Final] or
+ * [SttEvent.Error] ends the hold. Between start and that terminal event the engine emits any
+ * number of [SttEvent.Partial]s carrying the whole running transcript. [cancel] abandons the
+ * hold without a result.
+ *
+ * The engine owns continuity: one hold is one dictation even if the underlying recogniser wants
+ * to stop at every pause. Callers do not restart it or stitch phrases together. Implementations
+ * decide their own threading; the platform engine needs the main thread.
  */
 interface SttEngine {
     val events: SharedFlow<SttEvent>

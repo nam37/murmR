@@ -44,9 +44,14 @@ docs/testing.md.
 - Service and UI depend on `Transport`, never on `HidKeyboard` or `TextTyper` directly. New
   transports implement `Transport` under `transport/` and declare their `Capabilities`.
 - New STT engines implement `SttEngine` under `stt/`; the service should not need changes.
-- PTT state machine rules live in `MurmrService` and docs/architecture.md "Reliability rules":
-  nothing is typed mid-hold, text accumulates across recogniser sessions, 5 s finishing
-  timeout, 700 ms fast-fail guard. Keep them when editing the service.
+- Continuity within a hold belongs to the engine, not the service (see docs/architecture.md
+  "Continuity lives in the engine"). `AndroidSttEngine` asks for an Android 13+ segmented
+  session with punctuation, and stitches restarted sessions together when that is not honoured;
+  it emits `Partial`s with the whole running transcript and exactly one `Final` per hold. A new
+  engine must uphold that contract. Do not push session/restart logic back into the service.
+- PTT rules live in `MurmrService` and docs/architecture.md "Reliability rules": nothing typed
+  mid-hold, a release grace window (350 ms quiet, 1.2 s cap) before stopping the engine, and
+  the media stream muted for the hold to silence recogniser earcons. Keep them.
 - `TextTyper` reports exactly what was delivered (`DeliveryResult.delivered`); the UI shows that,
   not the recogniser's text. Preserve this so users can trust the phone display.
 - `MurmrService` is START_NOT_STICKY on purpose (microphone FGS cannot restart from background).

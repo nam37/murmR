@@ -5,11 +5,11 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.AudioManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
-import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
@@ -37,14 +37,16 @@ import kotlinx.coroutines.launch
  *
  *     pttDown() -> LISTENING -> pttUp() -> FINISHING -> TYPING -> IDLE
  *
- * Reliability rules (see docs/architecture.md, "Reliability rules"):
- *  - One hold may span several recogniser sessions. If the recogniser ends on its own while the
- *    button is still held (silence, no match), the text so far is kept and a new session starts.
- *    Everything is typed once, on release.
- *  - After release, the recogniser gets [FINISH_TIMEOUT_MS] to deliver; then it is cancelled and
- *    whatever was captured is typed.
- *  - A session that fails within [MIN_SESSION_MS] is not restarted, so a broken microphone or
- *    speech service cannot cause a tight loop.
+ * Continuity within a hold (spanning pauses, punctuation, etc.) belongs to the [SttEngine]; this
+ * service only drives the gesture and types the result. Its own reliability rules (see
+ * docs/architecture.md, "Reliability rules"):
+ *
+ *  - **Release grace window.** On release the microphone is kept open briefly so the last word
+ *    is not clipped: it stays open until [GRACE_QUIET_MS] passes with no new partial, or the
+ *    [GRACE_MAX_MS] cap is reached, and only then is the engine told to stop.
+ *  - **Nothing is typed mid-hold.** The engine emits one Final on stop; that is what gets typed.
+ *  - **Recogniser tones are muted** for the duration of a hold, so the platform's start/stop
+ *    earcons (and any restart click) are silenced.
  *
  * The activity binds to it for [ui] state and user actions. Everything runs on the main thread:
  * SpeechRecognizer requires it, and the Bluetooth callbacks are delivered there too.
@@ -60,6 +62,7 @@ class MurmrService : LifecycleService() {
     private lateinit var keyboard: HidKeyboard
     private lateinit var stt: SttEngine
     private lateinit var transport: Transport
+    private val audioManager: AudioManager by lazy { getSystemService(AudioManager::class.java) }
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -68,13 +71,10 @@ class MurmrService : LifecycleService() {
     var appendTrailingSpace = true
 
     // State of the current hold. Reset in pttDown().
-    private val segments = mutableListOf<String>()
-    private var currentPartial = ""
-    private var recognizing = false
-    private var sessionStartedAt = 0L
     private var releasedAt = 0L
-    private var holdError: String? = null
-    private var finishTimeout: Job? = null
+    private var lastPartialAt = 0L
+    private var graceJob: Job? = null
+    private var tonesMuted = false
 
     private var started = false
 
@@ -113,6 +113,8 @@ class MurmrService : LifecycleService() {
     }
 
     override fun onDestroy() {
+        graceJob?.cancel()
+        restoreTones()
         stt.destroy()
         keyboard.stop()
         super.onDestroy()
@@ -122,37 +124,26 @@ class MurmrService : LifecycleService() {
 
     fun pttDown() {
         if (_ui.value.phase != PttPhase.IDLE) return
-        segments.clear()
-        currentPartial = ""
-        holdError = null
+        lastPartialAt = SystemClock.elapsedRealtime()
+        muteTones()
         _ui.update { it.copy(phase = PttPhase.LISTENING, partial = "", error = null) }
-        startSession()
+        stt.start()
     }
 
     fun pttUp() {
         if (_ui.value.phase != PttPhase.LISTENING) return
         releasedAt = SystemClock.elapsedRealtime()
         _ui.update { it.copy(phase = PttPhase.FINISHING) }
-        if (!recognizing) {
-            // The recogniser already ended (or never started); nothing to wait for.
-            finish()
-            return
+        // Grace window: keep the microphone open until the transcript goes quiet, so a word still
+        // being spoken at release is captured. Extends while partials keep arriving, up to a cap.
+        graceJob = lifecycleScope.launch {
+            val cap = SystemClock.elapsedRealtime() + GRACE_MAX_MS
+            while (SystemClock.elapsedRealtime() < cap) {
+                if (SystemClock.elapsedRealtime() - lastPartialAt >= GRACE_QUIET_MS) break
+                delay(GRACE_STEP_MS)
+            }
+            stt.stop()
         }
-        stt.stop()
-        finishTimeout = lifecycleScope.launch {
-            delay(FINISH_TIMEOUT_MS)
-            Log.w(TAG, "recogniser did not finish within ${FINISH_TIMEOUT_MS}ms; cancelling")
-            stt.cancel()
-            recognizing = false
-            holdError = "Recogniser did not finish in time; typed what was captured"
-            finish()
-        }
-    }
-
-    private fun startSession() {
-        recognizing = true
-        sessionStartedAt = SystemClock.elapsedRealtime()
-        stt.start()
     }
 
     private fun onSttEvent(event: SttEvent) {
@@ -160,62 +151,28 @@ class MurmrService : LifecycleService() {
             SttEvent.Ready -> Unit
 
             is SttEvent.Partial -> {
-                currentPartial = event.text
-                publishPartial()
+                lastPartialAt = SystemClock.elapsedRealtime()
+                _ui.update { it.copy(partial = event.text) }
             }
 
-            is SttEvent.Final -> {
-                recognizing = false
-                currentPartial = ""
-                if (event.text.isNotBlank()) segments += event.text.trim()
-                publishPartial()
-                when (_ui.value.phase) {
-                    // Recogniser ended on its own while the button is still held: keep going.
-                    PttPhase.LISTENING -> startSession()
-                    PttPhase.FINISHING -> finish()
-                    else -> Unit
-                }
-            }
+            is SttEvent.Final -> finishWith(event.text)
 
             is SttEvent.Error -> {
-                recognizing = false
-                currentPartial = ""
                 Log.w(TAG, "STT error ${event.code}: ${event.message}")
-                when (_ui.value.phase) {
-                    PttPhase.LISTENING -> {
-                        val sessionMs = SystemClock.elapsedRealtime() - sessionStartedAt
-                        if (isPauseError(event.code) && sessionMs >= MIN_SESSION_MS) {
-                            // The user paused long enough for the recogniser to give up. Resume.
-                            publishPartial()
-                            startSession()
-                        } else {
-                            // Real failure: stop capturing, keep what we have, wait for release.
-                            holdError = event.message
-                            _ui.update { it.copy(error = event.message) }
-                        }
-                    }
-                    PttPhase.FINISHING -> {
-                        if (segments.isEmpty()) holdError = event.message
-                        finish()
-                    }
-                    // IDLE or TYPING: no session is open, so this is a late or duplicate error.
-                    // Changing phase here would interrupt typing or a new hold.
-                    else -> Log.i(TAG, "ignoring STT error outside a hold")
-                }
+                graceJob?.cancel()
+                restoreTones()
+                _ui.update { it.copy(phase = PttPhase.IDLE, partial = "", error = event.message) }
             }
         }
     }
 
-    /** Ends the hold: types everything captured, or reports why nothing was typed. */
-    private fun finish() {
-        finishTimeout?.cancel()
-        finishTimeout = null
-        val text = segments.joinToString(" ")
-        segments.clear()
-        currentPartial = ""
+    /** Types the hold's transcript, or reports why nothing was typed. */
+    private fun finishWith(text: String) {
+        graceJob?.cancel()
+        restoreTones()
 
         if (text.isBlank()) {
-            _ui.update { it.copy(phase = PttPhase.IDLE, partial = "", error = holdError ?: "Nothing recognised") }
+            _ui.update { it.copy(phase = PttPhase.IDLE, partial = "", error = null) }
             return
         }
         if (!transport.isReady) {
@@ -235,7 +192,6 @@ class MurmrService : LifecycleService() {
             val result = transport.sendText(if (appendTrailingSpace) "$text " else text)
             Log.i(TAG, "release-to-typed ${SystemClock.elapsedRealtime() - releasedAt} ms, ${result.delivered.length} chars")
             val notes = buildList {
-                holdError?.let { add(it) }
                 if (result.aborted) add("Connection dropped while typing")
                 if (result.dropped.isNotEmpty()) {
                     add("Dropped, no US-layout key: ${result.dropped}")
@@ -254,14 +210,28 @@ class MurmrService : LifecycleService() {
         }
     }
 
-    private fun publishPartial() {
-        val shown = (segments + currentPartial).filter { it.isNotBlank() }.joinToString(" ")
-        _ui.update { it.copy(partial = shown) }
+    // ---- Recogniser tones -------------------------------------------------------------------
+
+    /**
+     * Mutes the media stream, where the platform recogniser plays its start/stop earcons, for the
+     * duration of a hold. Best effort: it silences the click and chime, at the cost of muting any
+     * media playback until [restoreTones]. Balanced mute/unmute calls keep the stream's state.
+     */
+    private fun muteTones() {
+        if (tonesMuted) return
+        runCatching {
+            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
+        }.onFailure { Log.w(TAG, "could not mute recogniser tones", it) }
+        tonesMuted = true
     }
 
-    /** Errors that mean "the user stopped talking", not "something is broken". */
-    private fun isPauseError(code: Int): Boolean =
-        code == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || code == SpeechRecognizer.ERROR_NO_MATCH
+    private fun restoreTones() {
+        if (!tonesMuted) return
+        runCatching {
+            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
+        }.onFailure { Log.w(TAG, "could not restore audio", it) }
+        tonesMuted = false
+    }
 
     // ---- Hosts ------------------------------------------------------------------------------
 
@@ -324,10 +294,13 @@ class MurmrService : LifecycleService() {
         const val TAG = "MurmrService"
         const val NOTIFICATION_ID = 1
 
-        /** How long after release to wait for the recogniser's final result. */
-        const val FINISH_TIMEOUT_MS = 5_000L
+        /** After release, keep the mic open until this long passes with no new partial. */
+        const val GRACE_QUIET_MS = 350L
 
-        /** Sessions that fail faster than this are not restarted (tight-loop guard). */
-        const val MIN_SESSION_MS = 700L
+        /** Hard cap on the grace window, so a noisy room cannot hold the mic open forever. */
+        const val GRACE_MAX_MS = 1_200L
+
+        /** How often the grace window re-checks for quiet. */
+        const val GRACE_STEP_MS = 75L
     }
 }
