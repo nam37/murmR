@@ -187,8 +187,8 @@ feature: it is the evidence the product works.
 
 ## Roadmap
 
-1. **Make it run.** First build in Android Studio, fix compile and lint issues, pair on
-   Windows and macOS, then Milestone 1.
+1. **Make it run.** Build is green. Next: install on a phone, pair on Windows and macOS, then
+   Milestone 1.
 2. **Usability.** Settings (offline policy, trailing space, language, key delay),
    auto-reconnect to the last host, haptics on press and release.
 3. **Image links in the text stream.** Upload from the phone, type the URL with the prompt.

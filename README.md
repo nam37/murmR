@@ -20,8 +20,8 @@ computer sees an ordinary Bluetooth keyboard, so there is nothing to install on 
 
 ## Status
 
-Scaffold, v0. The code is written but has not yet been compiled or run on a phone: the machine
-that generated it has no Android SDK. Expect a round of build fixes on first open, then the
+v0. The debug build is green but nothing has run on a phone yet, so the Bluetooth keyboard and
+speech paths are unproven. Next: install on a phone, pair with a computer, and run the
 50-dictation test in [docs/testing.md](docs/testing.md). Design decisions and the roadmap are in
 [docs/architecture.md](docs/architecture.md).
 
@@ -60,7 +60,7 @@ CLAUDE.md                         working notes for Claude Code sessions
 
 ### Requirements
 
-- Android Studio (Meerkat or newer) with Android SDK 35. It bundles the JDK.
+- Android Studio with Android SDK 35, plus a JDK 17 for Gradle (see "Build and install").
 - A phone whose Bluetooth stack supports the HID *device* role. Pixels and most near-stock
   phones do; some Samsung models do not.
 - **Android 12 or newer** for guaranteed on-device recognition, with the offline speech pack for
@@ -70,18 +70,27 @@ CLAUDE.md                         working notes for Claude Code sessions
 
 ### Build and install
 
-1. Open the `android` folder in Android Studio. It reads
-   `gradle/wrapper/gradle-wrapper.properties` and downloads Gradle 8.11.1 on its own.
-2. Connect the phone with USB debugging enabled and press Run.
+Android Studio: open the `android` folder, let it sync, connect the phone with USB debugging
+enabled, and press Run.
 
-The `gradlew` scripts and wrapper jar are not committed. For command-line builds, generate them
-once with a local Gradle (for example `winget install Gradle.Gradle`):
+Command line: the Gradle wrapper is committed, so once the SDK is installed this is enough:
 
 ```bash
-cd android && gradle wrapper --gradle-version 8.11.1
+cd android && ./gradlew installDebug
 ```
 
-Gradle needs a JDK 17+; Android Studio's is at `<Android Studio>/jbr` if you have no other.
+Two machine-specific pieces of setup, both outside the repo:
+
+- **JDK.** Gradle 8.11 runs on JDK 17 to 23. Recent Android Studio versions bundle a newer JDK,
+  so install one (`winget install EclipseAdoptium.Temurin.17.JDK`) and point Gradle at it in
+  `~/.gradle/gradle.properties`, which both the command line and Android Studio honour:
+
+  ```
+  org.gradle.java.home=C:/Program Files/Eclipse Adoptium/jdk-17.0.20.101-hotspot
+  ```
+
+- **SDK.** Android Studio's setup wizard installs it (on Windows under `%LOCALAPPDATA%\Android\Sdk`).
+  `android/local.properties` (gitignored) must point `sdk.dir` at that folder.
 
 ### Pair with the computer
 

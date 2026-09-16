@@ -21,9 +21,12 @@ docs/testing.md.
 ## Build and run
 
 - Android Studio: open `android/`, Run on a physical phone. Emulators have no Bluetooth HID.
-- CLI: `cd android && ./gradlew installDebug` once the wrapper exists (see README).
-- The scaffold was written without an SDK on the machine and has never been compiled. Treat the
-  first build as validation and expect small fixes.
+- CLI: `cd android && ./gradlew assembleDebug` (the wrapper is committed). Gradle 8.11 needs
+  JDK 17 to 23; Android Studio's bundled JDK is newer, so the machine's
+  `~/.gradle/gradle.properties` sets `org.gradle.java.home` to a Temurin 17 install. The SDK
+  path lives in the gitignored `android/local.properties`.
+- `assembleDebug` is green as of 2026-09-16. Nothing has run on a phone yet: the Bluetooth HID
+  and speech paths are unverified until Milestone 1.
 - Before adding features, run docs/testing.md (50 consecutive dictations). That is Milestone 1.
 
 ## Constraints

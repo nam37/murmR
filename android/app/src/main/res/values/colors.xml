@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Warm white behind the teal mark, matching how the logo is presented. -->
+    <!-- Warm white behind the teal mark, matching how the logo is presented.
+         The brand teal itself lives in ui/theme/Theme.kt, where Compose can use it. -->
     <color name="ic_launcher_background">#F7F5F0</color>
-    <!-- Brand teal from the logo mark. -->
-    <color name="murmr_teal">#4A8578</color>
 </resources>
