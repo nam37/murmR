@@ -25,8 +25,9 @@ docs/testing.md.
   JDK 17 to 23; Android Studio's bundled JDK is newer, so the machine's
   `~/.gradle/gradle.properties` sets `org.gradle.java.home` to a Temurin 17 install. The SDK
   path lives in the gitignored `android/local.properties`.
-- `assembleDebug` is green as of 2026-09-16. Nothing has run on a phone yet: the Bluetooth HID
-  and speech paths are unverified until Milestone 1.
+- First end-to-end success 2026-09-16: sideloaded debug APK on a Pixel 11 Pro, paired with a
+  Windows 11 PC, on-device STT, text typed over Bluetooth HID. Milestone 1 (50 dictations) has
+  not been run yet, so reliability is still unmeasured.
 - Before adding features, run docs/testing.md (50 consecutive dictations). That is Milestone 1.
 
 ## Constraints

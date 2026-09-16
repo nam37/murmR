@@ -20,10 +20,10 @@ computer sees an ordinary Bluetooth keyboard, so there is nothing to install on 
 
 ## Status
 
-v0. The debug build is green but nothing has run on a phone yet, so the Bluetooth keyboard and
-speech paths are unproven. Next: install on a phone, pair with a computer, and run the
-50-dictation test in [docs/testing.md](docs/testing.md). Design decisions and the roadmap are in
-[docs/architecture.md](docs/architecture.md).
+v0, working end to end. On 2026-09-16 a sideloaded debug build on a Pixel 11 Pro paired with a
+Windows 11 PC as a Bluetooth keyboard and typed on-device dictation into a text field, first
+try. Next: the 50-dictation reliability test in [docs/testing.md](docs/testing.md). Design
+decisions and the roadmap are in [docs/architecture.md](docs/architecture.md).
 
 ## How it works
 

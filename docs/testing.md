@@ -57,3 +57,14 @@ logcat (`MurmrService: release-to-typed N ms`) or from a screen recording of bot
 - Text typed mid-hold or lost after a pause: session handling in `MurmrService`.
 - Stuck in FINISHING: the finishing timeout is not firing; check `pttUp`.
 - Nothing after a Bluetooth toggle: the adapter receiver in `HidKeyboard`.
+
+## Runs
+
+### 2026-09-16, first end-to-end run (not a full protocol run)
+
+- Phone: Pixel 11 Pro. Debug APK sideloaded, not installed over USB.
+- Computer: Windows 11 (NAM-RYZEN), paired from the computer's Bluetooth settings.
+- Build: commit 0d18059.
+- Result: keyboard registered and connected on the first attempt; on-device recognition
+  worked; three consecutive holds typed correctly into a desktop app's text field. No latency
+  measured (no USB debugging, so no logcat).

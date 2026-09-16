@@ -187,7 +187,7 @@ feature: it is the evidence the product works.
 
 ## Roadmap
 
-1. **Make it run.** Build is green. Next: install on a phone, pair on Windows and macOS, then
+1. **Make it run.** Done for Pixel 11 Pro to Windows 11 (2026-09-16). macOS untested. Next:
    Milestone 1.
 2. **Usability.** Settings (offline policy, trailing space, language, key delay),
    auto-reconnect to the last host, haptics on press and release.
