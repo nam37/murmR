@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Bluetooth, Android 12+ (runtime permissions). CONNECT: HID profile + paired devices.
+         ADVERTISE: making the phone discoverable so the computer can pair to it. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <!-- Bluetooth, Android 9-11 (install-time permissions). -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
+    <uses-feature android:name="android.hardware.microphone" android:required="true" />
+
+    <!-- Package visibility (Android 11+): without this, SpeechRecognizer cannot see any
+         recognition service and isRecognitionAvailable() is always false. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
+    <application
+        android:name=".MurmrApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Murmr">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Keeps the HID keyboard registered and the speech engine alive.
+             connectedDevice: Bluetooth HID link. microphone: push-to-talk capture. -->
+        <service
+            android:name=".service.MurmrService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|microphone" />
+    </application>
+</manifest>
