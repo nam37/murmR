@@ -189,6 +189,27 @@ for free and the service does not change:
   breaks as soon as the cursor moves or the app changes. Reliable delivery after release is the
   product.
 
+### Screen
+
+The screen is the approved skeuomorphic mockup (`design/phone-mockup`) built from its artwork,
+never from drawings of it (CLAUDE.md, "Visual target"). Layout, spacing, type and colour follow
+the mockup's stylesheet values; `ui/instrument/Palette.kt` mirrors it.
+
+- **Chassis**: the mockup image, crop-to-cover. Brushed grain is uniform, so cropping is
+  invisible and nothing is ever stretched.
+- **Glass panels**: the mockup image, presented with the mockup's own stretch rule so the look
+  matches what was approved.
+- **Talk button**: the two approved masters (idle, lit) cross-fading; mic glyph, ready lamp and
+  label are live layers on top, as the asset pack specifies.
+- **Live layers, drawn**: the waveform (fed by the recogniser's level callback) and the glows.
+  These are the only things the artwork cannot contain.
+- **Comparison switches**: the connection sheet can swap in the production-assets-v1
+  candidates (mirrored-tiled metal with the lighting overlay; nine-sliced blank glass with the
+  pack's slice coordinates). They ship for on-phone side-by-side judgement, not as defaults.
+- **Delivery feedback**: while typing, the transcript shows delivered text, a caret, and pending
+  text. The caret advances from actual keystrokes sent, never from a timer. A short "Typed"
+  state follows, with a double haptic tick; a single tick marks the microphone opening.
+
 ### Privacy
 
 With the default offline policy, audio never leaves the phone. Text travels only over the

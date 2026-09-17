@@ -15,8 +15,13 @@ docs/testing.md.
   - `transport/` `Transport` interface with `Capabilities` and `DeliveryResult`.
   - `service/` `MurmrService` foreground service owning HID, STT, transport, and the PTT state
     machine.
-  - `ui/` Compose screen and theme.
+  - `ui/` `MainScreen` (the instrument layout) and theme.
+  - `ui/instrument/` the skeuomorphic screen built from the approved artwork: `Materials`
+    (chassis, glass panels), `TalkButton`, `Waveform`, `Chrome` (brand, status pill),
+    `ConnectionSheet` (pairing plus artwork-comparison switches), `Palette` (mockup colours).
   - `MainActivity.kt` permissions, service binding, Volume Down as PTT.
+- `design/phone-mockup` is the approved visual target; `design/phone-mockup-assets` and
+  `design/production-assets-v1` are the artwork sources copied into `res/drawable-nodpi`.
 
 ## Build and run
 
@@ -57,6 +62,12 @@ docs/testing.md.
 - `MurmrService` is START_NOT_STICKY on purpose (microphone FGS cannot restart from background).
 - No host-side software in the direct Bluetooth mode. The companion transport is a roadmap
   item, not v0.
+- **Visual target is the approved mockup** in `design/phone-mockup` (skeuomorphic: brushed
+  blue-gray chassis, inset glass panels, teal metal push-to-talk button, reactive waveform).
+  Use its artwork (`design/phone-mockup-assets/`) wherever it contributes to the finish:
+  chassis as a crop-to-cover background, glass panels 9-sliced so edges stay native, button
+  faces as images. Do not substitute procedural or vector surfaces unless a side-by-side
+  comparison shows them at least as good. Drawing is for live layers only (waveform, glow).
 
 ## Decisions log
 
@@ -71,3 +82,13 @@ docs/testing.md.
   no public HID-keyboard API). Images: first as uploaded URLs typed into the prompt for LLM
   apps, later as real attachments via the companion. LLM text cleanup will be opt-in with the
   verbatim transcript kept visible.
+- 2026-09-16: Continuity moved into the STT engine (segmented session + restart fallback);
+  release grace window and recogniser-tone muting added to the service; auto-punctuation on.
+- 2026-09-16: Skeuomorphic mockup (`design/phone-mockup`) approved as the visual target. Ship
+  the artwork; no procedural stand-ins without a side-by-side win.
+- 2026-09-16: Instrument screen built from the artwork. Defaults are the mockup's own assets
+  (chassis crop-to-cover, glass stretched per its stylesheet); the production-assets-v1
+  candidates (mirrored metal tile, nine-sliced glass) are selectable in the connection sheet
+  for on-phone comparison, not yet approved. Typing cursor advances from real HID send progress
+  (`Transport.sendText(onProgress)`), never elapsed time. Haptic tick on mic-open, double tick
+  on delivery. Brief SENT phase after typing.

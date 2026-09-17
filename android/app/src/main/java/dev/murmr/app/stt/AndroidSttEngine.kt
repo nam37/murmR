@@ -228,7 +228,7 @@ class AndroidSttEngine(
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) = emit(SttEvent.Ready)
         override fun onBeginningOfSpeech() = Unit
-        override fun onRmsChanged(rmsdB: Float) = Unit
+        override fun onRmsChanged(rmsdB: Float) = emit(SttEvent.Level(rmsdB))
         override fun onBufferReceived(buffer: ByteArray?) = Unit
         override fun onEndOfSpeech() = Unit
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
@@ -300,7 +300,8 @@ class AndroidSttEngine(
         bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
 
     private fun emit(event: SttEvent) {
-        if (!_events.tryEmit(event)) Log.w(TAG, "dropped event $event")
+        // Level events are frequent and disposable; a dropped one is not worth a log line.
+        if (!_events.tryEmit(event) && event !is SttEvent.Level) Log.w(TAG, "dropped event $event")
     }
 
     private fun describe(code: Int): String = when (code) {

@@ -28,7 +28,7 @@ class TextTyper(
     override val isReady: Boolean get() = keyboard.isConnected
 
     /** Types [text]. Stops early (aborted = true) if the host connection drops mid-way. */
-    override suspend fun sendText(text: String): DeliveryResult {
+    override suspend fun sendText(text: String, onProgress: (deliveredChars: Int) -> Unit): DeliveryResult {
         val straightened = straighten(text)
         val folded = foldAccents(straightened)
         val adjusted = folded != straightened
@@ -45,6 +45,7 @@ class TextTyper(
                 return DeliveryResult(delivered.toString(), dropped.toString(), adjusted, aborted = true)
             }
             delivered.append(ch)
+            onProgress(delivered.length)
         }
         return DeliveryResult(delivered.toString(), dropped.toString(), adjusted)
     }

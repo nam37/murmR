@@ -14,6 +14,9 @@ sealed interface SttEvent {
      */
     data class Partial(val text: String) : SttEvent
 
+    /** Microphone level while listening, in the recogniser's dB scale (roughly -2 to 10). */
+    data class Level(val rmsDb: Float) : SttEvent
+
     /** The complete transcript for the hold. Empty when nothing was recognised. */
     data class Final(val text: String) : SttEvent
 

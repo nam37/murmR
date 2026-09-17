@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,7 +59,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The instrument screen is a dark chassis; ask for light system-bar icons over it.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         setContent {
             MurmrTheme {
                 val svc by service.collectAsStateWithLifecycle()

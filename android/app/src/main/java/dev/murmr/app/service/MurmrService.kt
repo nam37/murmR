@@ -10,6 +10,9 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.util.Log
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
@@ -35,7 +38,7 @@ import kotlinx.coroutines.launch
 /**
  * Foreground service that owns the moving parts and the push-to-talk state machine:
  *
- *     pttDown() -> LISTENING -> pttUp() -> FINISHING -> TYPING -> IDLE
+ *     pttDown() -> LISTENING --pttUp()--> FINISHING -> TYPING -> SENT -> IDLE
  *
  * Continuity within a hold (spanning pauses, punctuation, etc.) belongs to the [SttEngine]; this
  * service only drives the gesture and types the result. Its own reliability rules (see
@@ -47,6 +50,9 @@ import kotlinx.coroutines.launch
  *  - **Nothing is typed mid-hold.** The engine emits one Final on stop; that is what gets typed.
  *  - **Recogniser tones are muted** for the duration of a hold, so the platform's start/stop
  *    earcons (and any restart click) are silenced.
+ *  - **Haptics mark the moments the eyes miss**: a tick when the microphone actually opens and a
+ *    double tick when the text has reached the computer, because the user is usually looking at
+ *    the computer, not the phone.
  *
  * The activity binds to it for [ui] state and user actions. Everything runs on the main thread:
  * SpeechRecognizer requires it, and the Bluetooth callbacks are delivered there too.
@@ -63,6 +69,13 @@ class MurmrService : LifecycleService() {
     private lateinit var stt: SttEngine
     private lateinit var transport: Transport
     private val audioManager: AudioManager by lazy { getSystemService(AudioManager::class.java) }
+    private val vibrator: Vibrator? by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            getSystemService(Vibrator::class.java)
+        }
+    }
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui.asStateFlow()
@@ -74,6 +87,7 @@ class MurmrService : LifecycleService() {
     private var releasedAt = 0L
     private var lastPartialAt = 0L
     private var graceJob: Job? = null
+    private var sentReset: Job? = null
     private var tonesMuted = false
 
     private var started = false
@@ -86,7 +100,12 @@ class MurmrService : LifecycleService() {
 
         lifecycleScope.launch {
             keyboard.state.collect { hidState ->
-                _ui.update { it.copy(hid = hidState) }
+                _ui.update {
+                    it.copy(
+                        hid = hidState,
+                        lastHost = (hidState as? HidKeyboard.State.Connected)?.hostName ?: it.lastHost,
+                    )
+                }
                 updateNotification()
             }
         }
@@ -114,6 +133,7 @@ class MurmrService : LifecycleService() {
 
     override fun onDestroy() {
         graceJob?.cancel()
+        sentReset?.cancel()
         restoreTones()
         stt.destroy()
         keyboard.stop()
@@ -123,10 +143,12 @@ class MurmrService : LifecycleService() {
     // ---- Push to talk -----------------------------------------------------------------------
 
     fun pttDown() {
-        if (_ui.value.phase != PttPhase.IDLE) return
+        val phase = _ui.value.phase
+        if (phase != PttPhase.IDLE && phase != PttPhase.SENT) return
+        sentReset?.cancel()
         lastPartialAt = SystemClock.elapsedRealtime()
         muteTones()
-        _ui.update { it.copy(phase = PttPhase.LISTENING, partial = "", error = null) }
+        _ui.update { it.copy(phase = PttPhase.LISTENING, partial = "", level = 0f, deliveredChars = 0, error = null) }
         stt.start()
     }
 
@@ -148,11 +170,18 @@ class MurmrService : LifecycleService() {
 
     private fun onSttEvent(event: SttEvent) {
         when (event) {
-            SttEvent.Ready -> Unit
+            SttEvent.Ready -> tick()
 
             is SttEvent.Partial -> {
                 lastPartialAt = SystemClock.elapsedRealtime()
                 _ui.update { it.copy(partial = event.text) }
+            }
+
+            is SttEvent.Level -> {
+                val phase = _ui.value.phase
+                if (phase == PttPhase.LISTENING || phase == PttPhase.FINISHING) {
+                    _ui.update { it.copy(level = normalizeLevel(event.rmsDb)) }
+                }
             }
 
             is SttEvent.Final -> finishWith(event.text)
@@ -161,7 +190,7 @@ class MurmrService : LifecycleService() {
                 Log.w(TAG, "STT error ${event.code}: ${event.message}")
                 graceJob?.cancel()
                 restoreTones()
-                _ui.update { it.copy(phase = PttPhase.IDLE, partial = "", error = event.message) }
+                _ui.update { it.copy(phase = PttPhase.IDLE, partial = "", level = 0f, error = event.message) }
             }
         }
     }
@@ -172,7 +201,7 @@ class MurmrService : LifecycleService() {
         restoreTones()
 
         if (text.isBlank()) {
-            _ui.update { it.copy(phase = PttPhase.IDLE, partial = "", error = null) }
+            _ui.update { it.copy(phase = PttPhase.IDLE, partial = "", level = 0f, error = null) }
             return
         }
         if (!transport.isReady) {
@@ -180,6 +209,7 @@ class MurmrService : LifecycleService() {
                 it.copy(
                     phase = PttPhase.IDLE,
                     partial = "",
+                    level = 0f,
                     lastTyped = text,
                     error = "Not connected to a computer; nothing was typed",
                 )
@@ -187,9 +217,11 @@ class MurmrService : LifecycleService() {
             return
         }
 
-        _ui.update { it.copy(phase = PttPhase.TYPING, partial = text, error = null) }
+        _ui.update { it.copy(phase = PttPhase.TYPING, partial = text, level = 0f, deliveredChars = 0, error = null) }
         lifecycleScope.launch {
-            val result = transport.sendText(if (appendTrailingSpace) "$text " else text)
+            val result = transport.sendText(if (appendTrailingSpace) "$text " else text) { delivered ->
+                _ui.update { it.copy(deliveredChars = delivered) }
+            }
             Log.i(TAG, "release-to-typed ${SystemClock.elapsedRealtime() - releasedAt} ms, ${result.delivered.length} chars")
             val notes = buildList {
                 if (result.aborted) add("Connection dropped while typing")
@@ -201,13 +233,32 @@ class MurmrService : LifecycleService() {
             }
             _ui.update {
                 it.copy(
-                    phase = PttPhase.IDLE,
+                    phase = PttPhase.SENT,
                     partial = "",
+                    deliveredChars = 0,
                     lastTyped = result.delivered.trimEnd(),
                     error = notes.takeIf { n -> n.isNotEmpty() }?.joinToString("\n"),
                 )
             }
+            doubleTick()
+            sentReset = launch {
+                delay(SENT_HOLD_MS)
+                _ui.update { if (it.phase == PttPhase.SENT) it.copy(phase = PttPhase.IDLE) else it }
+            }
         }
+    }
+
+    /** Maps the recogniser's dB scale (about -2 to 10) onto 0..1 for the waveform. */
+    private fun normalizeLevel(rmsDb: Float): Float = ((rmsDb + 2f) / 12f).coerceIn(0f, 1f)
+
+    // ---- Haptics ----------------------------------------------------------------------------
+
+    private fun tick() {
+        vibrator?.vibrate(VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE))
+    }
+
+    private fun doubleTick() {
+        vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 12, 70, 12), -1))
     }
 
     // ---- Recogniser tones -------------------------------------------------------------------
@@ -302,5 +353,8 @@ class MurmrService : LifecycleService() {
 
         /** How often the grace window re-checks for quiet. */
         const val GRACE_STEP_MS = 75L
+
+        /** How long the "Typed" confirmation stays before the phase returns to IDLE. */
+        const val SENT_HOLD_MS = 1_800L
     }
 }

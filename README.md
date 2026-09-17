@@ -53,6 +53,7 @@ android/                          Android Studio project (Kotlin, Jetpack Compos
 docs/architecture.md              design decisions and roadmap
 docs/testing.md                   Milestone 1 test protocol (50 consecutive dictations)
 assets/branding/                  logo (source for the launcher icon and in-app mark)
+design/                           approved phone mockup and the artwork the app is built from
 CLAUDE.md                         working notes for Claude Code sessions
 ```
 

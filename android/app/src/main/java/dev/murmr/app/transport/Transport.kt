@@ -32,5 +32,10 @@ interface Transport {
     /** True when text sent now would reach the computer. */
     val isReady: Boolean
 
-    suspend fun sendText(text: String): DeliveryResult
+    /**
+     * Delivers [text]. [onProgress] is called with the number of characters actually delivered
+     * so far, driven by real send progress, never by elapsed time, so the UI's typing cursor
+     * reflects what has reached the computer.
+     */
+    suspend fun sendText(text: String, onProgress: (deliveredChars: Int) -> Unit = {}): DeliveryResult
 }
