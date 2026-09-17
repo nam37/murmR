@@ -59,9 +59,14 @@ class TextTyper(
         return true
     }
 
-    suspend fun backspace(count: Int): Boolean {
-        repeat(count) { if (!press(KeyMap.BACKSPACE)) return false }
-        return true
+    override suspend fun eraseChars(count: Int, onProgress: (erased: Int) -> Unit): Int {
+        var erased = 0
+        repeat(count) {
+            if (!press(KeyMap.BACKSPACE)) return erased
+            erased++
+            onProgress(erased)
+        }
+        return erased
     }
 
     /** With host Caps Lock on, Shift means lowercase for letters; invert it so case is preserved. */

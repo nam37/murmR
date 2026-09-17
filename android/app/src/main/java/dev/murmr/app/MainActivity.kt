@@ -73,16 +73,23 @@ class MainActivity : ComponentActivity() {
                 var hosts by remember { mutableStateOf(emptyList<HostDevice>()) }
                 LaunchedEffect(svc) { hosts = svc?.hosts().orEmpty() }
 
+                val settingsStore = (application as MurmrApp).settings
+                val settings by settingsStore.settings.collectAsStateWithLifecycle()
+
                 MainScreen(
                     state = state,
                     hosts = hosts,
                     permissionsDenied = denied,
+                    settings = settings,
+                    onSettings = settingsStore::update,
                     onRefreshHosts = { hosts = svc?.hosts().orEmpty() },
                     onConnect = { address -> svc?.connect(address) },
                     onDisconnect = { svc?.disconnect() },
                     onMakeDiscoverable = ::requestDiscoverable,
                     onPttDown = { svc?.pttDown() },
                     onPttUp = { svc?.pttUp() },
+                    onEraseLast = { svc?.eraseLast() },
+                    onTranscriptTouch = { svc?.touchTranscript() },
                 )
             }
         }

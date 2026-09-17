@@ -15,10 +15,13 @@ docs/testing.md.
   - `transport/` `Transport` interface with `Capabilities` and `DeliveryResult`.
   - `service/` `MurmrService` foreground service owning HID, STT, transport, and the PTT state
     machine.
+  - `settings/` `Settings` (app-wide, persisted in SharedPreferences) and `SettingsStore`,
+    owned by `MurmrApp`, read by the service and the UI.
   - `ui/` `MainScreen` (the instrument layout) and theme.
   - `ui/instrument/` the skeuomorphic screen built from the approved artwork: `Materials`
     (chassis, glass panels), `TalkButton`, `Waveform`, `Chrome` (brand, status pill),
-    `ConnectionSheet` (pairing plus artwork-comparison switches), `Palette` (mockup colours).
+    `ConnectionSheet` (per-computer: pairing), `SettingsSheet` (app-wide settings plus the
+    temporary artwork-comparison switches), `Palette` (mockup colours).
   - `MainActivity.kt` permissions, service binding, Volume Down as PTT.
 - `design/phone-mockup` is the approved visual target; `design/phone-mockup-assets` and
   `design/production-assets-v1` are the artwork sources copied into `res/drawable-nodpi`.
@@ -61,6 +64,13 @@ docs/testing.md.
 - Dictation timing (press-to-ready, release-to-stop, stop-to-final, release-to-typed) is logged
   under the `MurmrTiming` tag and shown as a line under the transcript after each dictation.
   It is the instrument for the clipped-speech investigation; do not remove it.
+- "Erase last" is backspace-count erasure of exactly what was delivered, never an undo. It is
+  invalidated by a new dictation, a disconnect, a host change, an erase, or the transcript
+  auto-clear. The app cannot know what the computer did to the text in between; keep the name
+  and the conservative rules.
+- Settings split: app-wide settings (tail, offline policy, auto-clear, keep-awake) in the
+  Settings sheet (footer button, plus a link from the connection sheet); per-computer settings
+  (pairing, and later OS profile and key assignments) in the connection sheet.
 - `TextTyper` reports exactly what was delivered (`DeliveryResult.delivered`); the UI shows that,
   not the recogniser's text. Preserve this so users can trust the phone display.
 - `MurmrService` is START_NOT_STICKY on purpose (microphone FGS cannot restart from background).
@@ -105,3 +115,8 @@ docs/testing.md.
   nine-sliced; the original panel's boundaries (22,162,1400,1540 / 98,238,750,890) were
   verified against its pixels. The mockup's 125% stretch rule is gone: it cropped the tall
   panel's rims and squashed the strip's.
+- 2026-09-17: Batch 2. Persisted app settings with a Settings sheet (capture tail 400-1000 ms,
+  on-device-only vs allow-online recognition, transcript auto-clear 15/30/60/never, keep-awake
+  mode). Transcript auto-clears after a dictation (default 30 s, countdown restarts on touch,
+  never mid-dictation or over an error). "Erase last" sends one backspace per delivered
+  character, shown with reverse progress, available until invalidated.

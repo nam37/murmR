@@ -38,4 +38,12 @@ interface Transport {
      * reflects what has reached the computer.
      */
     suspend fun sendText(text: String, onProgress: (deliveredChars: Int) -> Unit = {}): DeliveryResult
+
+    /**
+     * Erases [count] characters before the computer's cursor (Backspace, [count] times). Returns
+     * how many were sent; fewer than [count] means the connection dropped part-way. Correct only
+     * while the cursor still sits right after text this transport delivered; the caller owns
+     * that judgement.
+     */
+    suspend fun eraseChars(count: Int, onProgress: (erased: Int) -> Unit = {}): Int
 }

@@ -34,6 +34,9 @@ Record once per run:
 | 46-47 | Switch to another app on the phone and back, then dictate | service survival, rebinding |
 | 48-49 | Screen off and on, then dictate | foreground service, microphone access |
 | 50 | Volume Down as the trigger | hardware PTT path |
+| 50a | Dictate, then Erase last; dictate again | backspace-count erasure leaves the field exactly as before |
+| 50b | Dictate, click elsewhere on the computer, then Erase last | the documented limit: erasure hits the wrong place |
+| 50c | Dictate and wait past the auto-clear time | phone clears; computer text untouched; Erase last gone |
 
 ## Record per dictation
 

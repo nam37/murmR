@@ -216,6 +216,18 @@ the mockup's stylesheet values; `ui/instrument/Palette.kt` mirrors it.
 - **Delivery feedback**: while typing, the transcript shows delivered text, a caret, and pending
   text. The caret advances from actual keystrokes sent, never from a timer. A short "Typed"
   state follows, with a double haptic tick; a single tick marks the microphone opening.
+- **Erase last**: after a dictation lands, an "Erase last" control under the transcript sends
+  one backspace per delivered character, dimming the text from the end as it goes. It is
+  deliberately not called undo: the phone knows what it sent, not what the computer now holds,
+  so it is valid only while the cursor still sits after that text. It disappears on a new
+  dictation, a disconnect, a host change, or when the transcript auto-clears.
+- **Transcript auto-clear**: the phone's display clears a configurable time after a dictation
+  (default 30 s; 15, 60, or never). The countdown restarts when the transcript is touched and
+  never fires mid-dictation or over an unresolved error. The computer's text is untouched.
+- **Settings**: app-wide settings (capture tail, on-device-only recognition, auto-clear,
+  keep-awake) live in a Settings sheet opened from an etched footer button, the mockup's own
+  idiom for its sheet, or from the connection sheet. Per-computer settings stay in the
+  connection sheet. Settings persist in SharedPreferences (`settings/`).
 
 ### Privacy
 

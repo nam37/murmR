@@ -43,7 +43,7 @@ class AndroidSttEngine(
     private val context: Context,
     /** BCP-47 tag such as "en-US", or null for the device default. */
     private val language: String? = null,
-    private val offlinePolicy: OfflinePolicy = OfflinePolicy.REQUIRED,
+    offlinePolicy: OfflinePolicy = OfflinePolicy.REQUIRED,
     /** Ask the Android 13+ engine for automatic punctuation and capitalisation. */
     private val enableFormatting: Boolean = Build.VERSION.SDK_INT >= 33,
     /** Ask the Android 13+ engine for a pause-surviving segmented session. */
@@ -52,6 +52,13 @@ class AndroidSttEngine(
 
     private val _events = MutableSharedFlow<SttEvent>(extraBufferCapacity = 32)
     override val events: SharedFlow<SttEvent> = _events.asSharedFlow()
+
+    /**
+     * Changeable at runtime (a setting). Takes effect the next time a recogniser has to be
+     * created: an existing on-device recogniser is kept, since it satisfies both policies.
+     */
+    @Volatile
+    var offlinePolicy: OfflinePolicy = offlinePolicy
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
