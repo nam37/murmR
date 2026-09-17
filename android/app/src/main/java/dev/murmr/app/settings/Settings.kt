@@ -56,6 +56,10 @@ data class Settings(
      */
     val continuousCapture: Boolean = Build.VERSION.SDK_INT >= 33,
     val typingSpeed: TypingSpeed = TypingSpeed.NORMAL,
+    /** App-owned sound cues on mic-open and delivery. Off: dictating next to a computer is quiet work. */
+    val soundCues: Boolean = false,
+    /** Subtle haptic cues on mic-open, delivery and keycap presses. */
+    val haptics: Boolean = false,
 ) {
     companion object {
         val TAIL_OPTIONS = listOf(400, 600, 800, 1000)
@@ -83,6 +87,8 @@ class SettingsStore(context: Context) {
             putString(KEY_KEEP_AWAKE, next.keepAwake.name)
             putBoolean(KEY_CONTINUOUS, next.continuousCapture)
             putString(KEY_TYPING_SPEED, next.typingSpeed.name)
+            putBoolean(KEY_SOUND_CUES, next.soundCues)
+            putBoolean(KEY_HAPTICS, next.haptics)
         }
     }
 
@@ -95,6 +101,8 @@ class SettingsStore(context: Context) {
             keepAwake = enumOr(prefs.getString(KEY_KEEP_AWAKE, null), d.keepAwake),
             continuousCapture = prefs.getBoolean(KEY_CONTINUOUS, d.continuousCapture),
             typingSpeed = enumOr(prefs.getString(KEY_TYPING_SPEED, null), d.typingSpeed),
+            soundCues = prefs.getBoolean(KEY_SOUND_CUES, d.soundCues),
+            haptics = prefs.getBoolean(KEY_HAPTICS, d.haptics),
         )
     }
 
@@ -109,5 +117,7 @@ class SettingsStore(context: Context) {
         const val KEY_KEEP_AWAKE = "keep_awake"
         const val KEY_CONTINUOUS = "continuous_capture"
         const val KEY_TYPING_SPEED = "typing_speed"
+        const val KEY_SOUND_CUES = "sound_cues"
+        const val KEY_HAPTICS = "haptics"
     }
 }

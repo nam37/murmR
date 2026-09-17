@@ -227,7 +227,10 @@ the mockup's stylesheet values; `ui/instrument/Palette.kt` mirrors it.
   pack's slice coordinates). They ship for on-phone side-by-side judgement, not as defaults.
 - **Delivery feedback**: while typing, the transcript shows delivered text, a caret, and pending
   text. The caret advances from actual keystrokes sent, never from a timer. A short "Typed"
-  state follows, with a double haptic tick; a single tick marks the microphone opening.
+  state follows. Two opt-in cue channels mark the moments the eyes miss, mic-open and delivery:
+  app-generated sounds (a blip and a rising two-note, played as system sonification) and the
+  platform's subtle predefined haptics. Both default off; dictating beside a computer is
+  usually quiet work, and with continuous capture the recogniser adds no earcons of its own.
 - **Erase last**: after a dictation lands, an "Erase last" control under the transcript sends
   one backspace per delivered character, dimming the text from the end as it goes. It is
   deliberately not called undo: the phone knows what it sent, not what the computer now holds,

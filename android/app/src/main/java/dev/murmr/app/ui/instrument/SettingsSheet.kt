@@ -102,6 +102,20 @@ fun SettingsSheet(
                     "second. If characters go missing, choose Careful.",
             )
 
+            SectionTitle("Feedback")
+            ChoiceRow(
+                label = "Sound cues",
+                options = listOf(false to "Off", true to "On"),
+                selected = settings.soundCues,
+            ) { v -> onSettings { it.copy(soundCues = v) } }
+            Help("A short blip when the microphone opens and a rising two-note when the text has landed.")
+            ChoiceRow(
+                label = "Haptics",
+                options = listOf(false to "Off", true to "On"),
+                selected = settings.haptics,
+            ) { v -> onSettings { it.copy(haptics = v) } }
+            Help("Subtle vibrations at the same moments, and on keycap presses.")
+
             SectionTitle("Transcript")
             ChoiceRow(
                 label = "Auto-clear",

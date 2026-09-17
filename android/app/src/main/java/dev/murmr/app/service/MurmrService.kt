@@ -20,6 +20,7 @@ import dev.murmr.app.MainActivity
 import dev.murmr.app.MurmrApp
 import dev.murmr.app.R
 import dev.murmr.app.diag.EventLog
+import dev.murmr.app.feedback.SoundCues
 import dev.murmr.app.hid.HidKeyboard
 import dev.murmr.app.hid.HostDevice
 import dev.murmr.app.hid.TextTyper
@@ -111,6 +112,9 @@ class MurmrService : LifecycleService() {
     private var autoClearJob: Job? = null
     private var tonesMuted = false
     private var tailMs = Settings().tailMs.toLong()
+    private var soundCuesOn = Settings().soundCues
+    private var hapticsOn = Settings().haptics
+    private val soundCues by lazy { SoundCues() }
 
     /** The last text delivered to the computer, kept only while erasing it is still valid. */
     private var eraseable: String? = null
@@ -147,6 +151,8 @@ class MurmrService : LifecycleService() {
                 stt.offlinePolicy = s.offlinePolicy
                 tailMs = s.tailMs.toLong()
                 typer.keyDelayMs = s.typingSpeed.delayMs
+                soundCuesOn = s.soundCues
+                hapticsOn = s.haptics
                 // Swapping engines mid-hold would lose the hold; defer to the next press.
                 if (_ui.value.phase == PttPhase.IDLE || _ui.value.phase == PttPhase.SENT) {
                     installEngine(s.continuousCapture)
@@ -418,7 +424,7 @@ class MurmrService : LifecycleService() {
                     error = if (erased < text.length) "Erase interrupted after $erased of ${text.length} characters" else null,
                 )
             }
-            tick()
+            actionClick()
         }
     }
 
@@ -459,7 +465,7 @@ class MurmrService : LifecycleService() {
         invalidateErase()
         lifecycleScope.launch {
             val ok = transport.sendKey(chord)
-            tick()
+            actionClick()
             notice(if (ok) "$caption sent" else "$caption failed: connection dropped")
         }
     }
@@ -473,7 +479,7 @@ class MurmrService : LifecycleService() {
             val result = transport.sendText(text) { n -> _ui.update { it.copy(deliveredChars = n) } }
             var ok = !result.aborted
             if (ok && enterAfter) ok = transport.sendKey(KeyChord(dev.murmr.app.macros.Keys.ENTER, 0))
-            tick()
+            actionClick()
             _ui.update {
                 it.copy(
                     phase = PttPhase.IDLE,
@@ -524,14 +530,35 @@ class MurmrService : LifecycleService() {
         _ui.update { if (it.canErase) it.copy(canErase = false, eraseCount = 0) else it }
     }
 
-    // ---- Haptics ----------------------------------------------------------------------------
+    // ---- Feedback cues ----------------------------------------------------------------------
+    // The eyes are on the computer, so the moments that matter (mic open, text landed) get
+    // cues the user can feel or hear. Both channels are opt-in settings.
 
+    /** The microphone is open: speak. */
     private fun tick() {
-        vibrator?.vibrate(VibrationEffect.createOneShot(12, VibrationEffect.DEFAULT_AMPLITUDE))
+        haptic(HAPTIC_TICK, 10)
+        if (soundCuesOn) soundCues.ready()
     }
 
+    /** The text has reached the computer. */
     private fun doubleTick() {
-        vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 12, 70, 12), -1))
+        haptic(HAPTIC_DOUBLE_CLICK, 12, longArrayOf(0, 12, 70, 12))
+        if (soundCuesOn) soundCues.delivered()
+    }
+
+    /** A keycap or erase went out: a click, no sound. */
+    private fun actionClick() = haptic(HAPTIC_CLICK, 12)
+
+    private fun haptic(predefined: Int, fallbackMs: Long, fallbackPattern: LongArray? = null) {
+        if (!hapticsOn) return
+        val v = vibrator ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            v.vibrate(VibrationEffect.createPredefined(predefined))
+        } else if (fallbackPattern != null) {
+            v.vibrate(VibrationEffect.createWaveform(fallbackPattern, -1))
+        } else {
+            v.vibrate(VibrationEffect.createOneShot(fallbackMs, VibrationEffect.DEFAULT_AMPLITUDE))
+        }
     }
 
     // ---- Recogniser tones -------------------------------------------------------------------
@@ -655,5 +682,10 @@ class MurmrService : LifecycleService() {
 
         /** How long a finished dictation waits for a dropped link to come back before giving up. */
         const val RECONNECT_WAIT_MS = 3_000L
+
+        // VibrationEffect.EFFECT_* were added in API 29; literal values keep minSdk 28 lint quiet.
+        const val HAPTIC_CLICK = 0          // EFFECT_CLICK
+        const val HAPTIC_DOUBLE_CLICK = 1   // EFFECT_DOUBLE_CLICK
+        const val HAPTIC_TICK = 2           // EFFECT_TICK
     }
 }

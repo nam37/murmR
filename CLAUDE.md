@@ -181,3 +181,9 @@ docs/testing.md.
   capitalises every segment start; mid-sentence pauses were producing ", But" and "The". A name
   at a mid-sentence pause loses its capital; accepted. Word-level errors (crossload, writes)
   are recogniser accuracy and belong to the roadmap's opt-in cleanup pass, not to join logic.
+- 2026-09-17: Feedback cues are opt-in, both off by default (Settings > Feedback). Sound cues
+  are app-generated (`feedback/SoundCues.kt`: blip on mic-open, rising two-note on delivery)
+  played as assistance sonification so the hold's media mute never silences them. Haptics use
+  the platform's predefined subtle effects (tick, double-click, click) rather than raw buzzes.
+  The always-on 12 ms buzz is gone; with continuous capture the recogniser plays no earcons,
+  so all feedback is the app's own.
