@@ -19,3 +19,10 @@ Thumbs.db
 # Signing
 *.jks
 *.keystore
+
+# Design mockup: keep source, assets and QA screenshots; not its dependencies or build output
+design/phone-mockup/node_modules/
+design/phone-mockup/dist/
+design/phone-mockup/.openai/
+design/phone-mockup/test-results/
+design/phone-mockup/playwright-report/

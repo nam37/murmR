@@ -1,0 +1,69 @@
+[
+  {
+    "file": "glass-empty.png",
+    "width": 1448,
+    "height": 1086,
+    "alpha": [
+      0,
+      255
+    ],
+    "visible_bounds": [
+      11,
+      92,
+      1438,
+      986
+    ]
+  },
+  {
+    "file": "lighting-overlay.png",
+    "width": 1024,
+    "height": 1536,
+    "alpha": [
+      0,
+      220
+    ],
+    "visible_bounds": [
+      0,
+      0,
+      1024,
+      1536
+    ]
+  },
+  {
+    "file": "metal-tile.png",
+    "width": 1254,
+    "height": 1254,
+    "alpha": null,
+    "visible_bounds": null
+  },
+  {
+    "file": "talk-active.png",
+    "width": 1254,
+    "height": 1254,
+    "alpha": [
+      0,
+      255
+    ],
+    "visible_bounds": [
+      39,
+      40,
+      1214,
+      1214
+    ]
+  },
+  {
+    "file": "talk-idle.png",
+    "width": 1254,
+    "height": 1254,
+    "alpha": [
+      0,
+      255
+    ],
+    "visible_bounds": [
+      39,
+      39,
+      1213,
+      1213
+    ]
+  }
+]
