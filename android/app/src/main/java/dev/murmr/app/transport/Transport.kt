@@ -3,9 +3,18 @@ package dev.murmr.app.transport
 /** What a transport can carry to the computer. Drives which features the UI offers. */
 data class Capabilities(
     val text: Boolean,
+    /** Individual key chords (shortcuts, Enter, arrows), beyond typed text. */
+    val keys: Boolean = false,
     val images: Boolean = false,
     val clipboardPaste: Boolean = false,
 )
+
+/**
+ * One key press with modifiers, in HID terms: a usage code from Usage Page 0x07 and the
+ * modifier bitmask (Ctrl 0x01, Shift 0x02, Alt 0x04, GUI 0x08). HID codes are the common
+ * language here; a non-HID transport would translate them.
+ */
+data class KeyChord(val usage: Int, val modifiers: Int = 0)
 
 /** Outcome of delivering text. [delivered] is exactly what reached the computer. */
 data class DeliveryResult(
@@ -46,4 +55,7 @@ interface Transport {
      * that judgement.
      */
     suspend fun eraseChars(count: Int, onProgress: (erased: Int) -> Unit = {}): Int
+
+    /** Presses and releases one chord (modifiers held with the key). False if it could not be sent. */
+    suspend fun sendKey(chord: KeyChord): Boolean
 }

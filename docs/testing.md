@@ -37,6 +37,11 @@ Record once per run:
 | 50a | Dictate, then Erase last; dictate again | backspace-count erasure leaves the field exactly as before |
 | 50b | Dictate, click elsewhere on the computer, then Erase last | the documented limit: erasure hits the wrong place |
 | 50c | Dictate and wait past the auto-clear time | phone clears; computer text untouched; Erase last gone |
+| 50d | Set the computer's OS, dictate, tap Enter keycap | shortcut profile; Enter submits the field |
+| 50e | Copy something on the computer, tap Paste keycap | preset resolves to Ctrl+V or ⌘V per profile |
+| 50f | Double-tap Enter quickly | debounce: exactly one Enter |
+| 50g | Long-press a keycap, assign a text snippet with Enter after, tap it | editor, text macro, trailing Enter |
+| 50h | Tap a keycap mid-hold | inert: no keystroke interleaves with dictation |
 
 ## Record per dictation
 

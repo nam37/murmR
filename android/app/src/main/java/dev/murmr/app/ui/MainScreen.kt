@@ -47,6 +47,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.murmr.app.hid.HidKeyboard
 import dev.murmr.app.hid.HostDevice
+import dev.murmr.app.macros.HostConfig
+import dev.murmr.app.macros.HostOs
+import dev.murmr.app.macros.Macro
+import dev.murmr.app.macros.MacroAction
 import dev.murmr.app.service.PttPhase
 import dev.murmr.app.service.UiState
 import dev.murmr.app.settings.KeepAwake
@@ -57,9 +61,10 @@ import dev.murmr.app.ui.instrument.ConnectionSheet
 import dev.murmr.app.ui.instrument.GlassArt
 import dev.murmr.app.ui.instrument.GlassPanel
 import dev.murmr.app.ui.instrument.Header
+import dev.murmr.app.ui.instrument.MacroCluster
+import dev.murmr.app.ui.instrument.MacroEditorSheet
 import dev.murmr.app.ui.instrument.Palette
 import dev.murmr.app.ui.instrument.SettingsSheet
-import dev.murmr.app.ui.instrument.TalkButton
 import dev.murmr.app.ui.instrument.Waveform
 
 private enum class Sheet { NONE, CONNECTION, SETTINGS }
@@ -83,8 +88,14 @@ fun MainScreen(
     onPttUp: () -> Unit,
     onEraseLast: () -> Unit,
     onTranscriptTouch: () -> Unit,
+    hostConfig: HostConfig,
+    canEditKeys: Boolean,
+    onMacro: (index: Int) -> Unit,
+    onSaveMacro: (index: Int, Macro) -> Unit,
+    onHostOs: (HostOs) -> Unit,
 ) {
     var sheet by remember { mutableStateOf(Sheet.NONE) }
+    var editingKey by remember { mutableStateOf<Int?>(null) }
     var chassisArt by rememberSaveable { mutableStateOf(ChassisArt.ORIGINAL) }
     var glassArt by rememberSaveable { mutableStateOf(GlassArt.ORIGINAL) }
 
@@ -154,7 +165,18 @@ fun MainScreen(
             }
 
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                TalkButton(phase = state.phase, enabled = connected && !busy, onDown = onPttDown, onUp = onPttUp)
+                MacroCluster(
+                    phase = state.phase,
+                    connected = connected,
+                    macros = hostConfig.macros,
+                    os = hostConfig.os,
+                    onPttDown = onPttDown,
+                    onPttUp = onPttUp,
+                    onMacro = onMacro,
+                    // Assignment needs a computer to belong to; with none known yet, pairing
+                    // is the next step, so open that sheet instead.
+                    onEditMacro = { i -> if (canEditKeys) editingKey = i else sheet = Sheet.CONNECTION },
+                )
                 Text(
                     "Hold to talk, release to type",
                     color = Palette.instructions,
@@ -179,11 +201,25 @@ fun MainScreen(
         }
     }
 
+    editingKey?.let { index ->
+        MacroEditorSheet(
+            index = index,
+            initial = hostConfig.macros.getOrNull(index) ?: Macro("", MacroAction.None),
+            hostName = state.lastHost ?: "this computer",
+            os = hostConfig.os,
+            onSave = { macro -> onSaveMacro(index, macro) },
+            onDismiss = { editingKey = null },
+        )
+    }
+
     when (sheet) {
         Sheet.CONNECTION -> ConnectionSheet(
             hid = state.hid,
             lastHost = state.lastHost,
             hosts = hosts,
+            hostOs = hostConfig.os,
+            canSetOs = canEditKeys,
+            onHostOs = onHostOs,
             onRefreshHosts = onRefreshHosts,
             onConnect = onConnect,
             onDisconnect = onDisconnect,
@@ -299,7 +335,7 @@ private fun ColumnScope.TranscriptContent(state: UiState, onEraseLast: () -> Uni
         PttPhase.ERASING ->
             "Erasing · ${state.deliveredChars.coerceAtMost(state.eraseCount)} / ${state.eraseCount} characters"
         PttPhase.IDLE, PttPhase.SENT ->
-            listOfNotNull(state.error, state.timing).joinToString("\n").ifBlank { null }
+            listOfNotNull(state.error, state.notice, state.timing).joinToString("\n").ifBlank { null }
         else -> state.error
     }
     if (notice != null || state.canErase) {

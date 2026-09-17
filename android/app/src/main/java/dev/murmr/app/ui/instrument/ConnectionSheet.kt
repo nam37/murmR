@@ -20,14 +20,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.murmr.app.hid.HidKeyboard
 import dev.murmr.app.hid.HostDevice
+import dev.murmr.app.macros.HostOs
 
-/** Connection management (pair, connect, disconnect). Opens from the status pill. */
+/**
+ * Per-computer things: pairing and connection, and the computer's OS profile (which decides
+ * how shortcut keycaps resolve). Opens from the status pill.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectionSheet(
     hid: HidKeyboard.State,
     lastHost: String?,
     hosts: List<HostDevice>,
+    hostOs: HostOs?,
+    canSetOs: Boolean,
+    onHostOs: (HostOs) -> Unit,
     onRefreshHosts: () -> Unit,
     onConnect: (address: String) -> Unit,
     onDisconnect: () -> Unit,
@@ -76,6 +83,20 @@ fun ConnectionSheet(
                     }
                 }
                 else -> Unit
+            }
+
+            if (canSetOs) {
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                ChoiceRow<HostOs?>(
+                    label = "${lastHost ?: "This computer"} runs",
+                    options = HostOs.entries.map { it to it.label },
+                    selected = hostOs,
+                    onSelect = { os -> os?.let(onHostOs) },
+                )
+                Text(
+                    "Decides how shortcut keys are pressed: Paste is Ctrl+V on Windows and Linux, ⌘V on a Mac.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))

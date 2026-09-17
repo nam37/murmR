@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -60,6 +62,10 @@ fun TalkButton(
     Box(
         modifier
             .size(250.dp)
+            // Hit-test as a circle, not the square bounds: the keycaps sit at the corners of the
+            // same cluster and a tap near the ring must land on them, not here (the mockup's
+            // clip-path). The art is circular, so nothing visible changes.
+            .clip(CircleShape)
             .alpha(if (enabled) 1f else 0.65f)
             .pointerInput(enabled) {
                 if (!enabled) return@pointerInput

@@ -17,11 +17,16 @@ docs/testing.md.
     machine.
   - `settings/` `Settings` (app-wide, persisted in SharedPreferences) and `SettingsStore`,
     owned by `MurmrApp`, read by the service and the UI.
+  - `macros/` per-computer keycaps: `Macro`/`MacroAction` (key chord, OS-resolved shortcut
+    preset, text snippet, none), `HostOs`, `Keys` (HID usages and symbols), `MacroStore`
+    (JSON in SharedPreferences keyed by the computer's Bluetooth address).
   - `ui/` `MainScreen` (the instrument layout) and theme.
   - `ui/instrument/` the skeuomorphic screen built from the approved artwork: `Materials`
     (chassis, glass panels), `TalkButton`, `Waveform`, `Chrome` (brand, status pill),
-    `ConnectionSheet` (per-computer: pairing), `SettingsSheet` (app-wide settings plus the
-    temporary artwork-comparison switches), `Palette` (mockup colours).
+    `MacroKey` and `MacroCluster` (the four keycaps around the talk button), `MacroEditorSheet`
+    (long-press assignment), `ConnectionSheet` (per-computer: pairing and OS profile),
+    `SettingsSheet` (app-wide settings plus the temporary artwork-comparison switches),
+    `Palette` (mockup colours).
   - `MainActivity.kt` permissions, service binding, Volume Down as PTT.
 - `design/phone-mockup` is the approved visual target; `design/phone-mockup-assets` and
   `design/production-assets-v1` are the artwork sources copied into `res/drawable-nodpi`.
@@ -70,7 +75,15 @@ docs/testing.md.
   and the conservative rules.
 - Settings split: app-wide settings (tail, offline policy, auto-clear, keep-awake) in the
   Settings sheet (footer button, plus a link from the connection sheet); per-computer settings
-  (pairing, and later OS profile and key assignments) in the connection sheet.
+  (pairing, OS profile) in the connection sheet; key assignments via long-press on a keycap.
+- Keycaps: shortcut presets are stored by name and resolved from the computer's `HostOs` at
+  send time, never stored as chords, so changing the profile fixes every preset. The OS is
+  never inferred from the Bluetooth identity; until set, presets show "?" and refuse to send.
+  Keys are inert while listening, finishing, typing or erasing, so keystrokes never
+  interleave with dictation; a 250 ms debounce makes a double tap one press. Any keycap send
+  invalidates Erase last. Saving in the editor never sends.
+- The talk button hit-tests as a circle (`clip(CircleShape)` before `pointerInput`) because the
+  keycaps sit at the corners of the same 282 dp cluster. Keep that order.
 - `TextTyper` reports exactly what was delivered (`DeliveryResult.delivered`); the UI shows that,
   not the recogniser's text. Preserve this so users can trust the phone display.
 - `MurmrService` is START_NOT_STICKY on purpose (microphone FGS cannot restart from background).
@@ -120,3 +133,9 @@ docs/testing.md.
   mode). Transcript auto-clears after a dictation (default 30 s, countdown restarts on touch,
   never mid-dictation or over an error). "Erase last" sends one backspace per delivered
   character, shown with reverse progress, available until invalidated.
+- 2026-09-17: Batch 3. Macro cluster from the updated mockup: four keycaps (approved
+  macro-idle/pressed masters) at the corners of a 282 dp cluster around the talk button, default
+  Enter / Tab / Esc / Paste. Per-computer OS profile (Windows, macOS, Linux) in the connection
+  sheet. Long-press opens the editor: WYSIWYG preview, caption, Key mode (common keys and
+  presets as keycaps, any key plus modifier toggles) or Text mode (snippet, Enter after,
+  delivered-text preview), Clear / Cancel / Save. Stored per computer as JSON.

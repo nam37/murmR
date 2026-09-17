@@ -228,6 +228,15 @@ the mockup's stylesheet values; `ui/instrument/Palette.kt` mirrors it.
   keep-awake) live in a Settings sheet opened from an etched footer button, the mockup's own
   idiom for its sheet, or from the connection sheet. Per-computer settings stay in the
   connection sheet. Settings persist in SharedPreferences (`settings/`).
+- **Keycaps**: four square metal keys (the approved macro masters) at the corners of the
+  control deck, defaulting to Enter, Tab, Esc and Paste. A tap sends and lights the key for
+  220 ms with a haptic tick; a long-press opens the assignment editor, which works even while
+  disconnected. Assignments are per computer and come in three kinds: a key chord stored
+  literally, a shortcut preset (Paste, Copy, Cut, Undo, Select all, Save, Find, New line)
+  stored by name and resolved from the computer's OS profile at send time, or a text snippet
+  with optional Enter after. The OS profile is set explicitly in the connection sheet; until
+  then presets show "?" and refuse to send. Keys are inert while anything is being captured or
+  sent, and any keycap send invalidates Erase last. Saving in the editor never sends.
 
 ### Privacy
 

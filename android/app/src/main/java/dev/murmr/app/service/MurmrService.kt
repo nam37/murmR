@@ -22,11 +22,14 @@ import dev.murmr.app.R
 import dev.murmr.app.hid.HidKeyboard
 import dev.murmr.app.hid.HostDevice
 import dev.murmr.app.hid.TextTyper
+import dev.murmr.app.macros.MacroAction
+import dev.murmr.app.macros.MacroStore
 import dev.murmr.app.settings.Settings
 import dev.murmr.app.settings.SettingsStore
 import dev.murmr.app.stt.AndroidSttEngine
 import dev.murmr.app.stt.SttEngine
 import dev.murmr.app.stt.SttEvent
+import dev.murmr.app.transport.KeyChord
 import dev.murmr.app.transport.Transport
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -74,6 +77,7 @@ class MurmrService : LifecycleService() {
     private val stt: SttEngine get() = engine
     private lateinit var transport: Transport
     private val settingsStore: SettingsStore by lazy { (application as MurmrApp).settings }
+    private val macroStore: MacroStore by lazy { (application as MurmrApp).macros }
     private val audioManager: AudioManager by lazy { getSystemService(AudioManager::class.java) }
     private val vibrator: Vibrator? by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -117,7 +121,14 @@ class MurmrService : LifecycleService() {
             keyboard.state.collect { hidState ->
                 val connected = hidState as? HidKeyboard.State.Connected
                 val previousHost = _ui.value.lastHost
-                _ui.update { it.copy(hid = hidState, lastHost = connected?.hostName ?: it.lastHost) }
+                _ui.update {
+                    it.copy(
+                        hid = hidState,
+                        lastHost = connected?.hostName ?: it.lastHost,
+                        hostAddress = connected?.address,
+                        lastHostAddress = connected?.address ?: it.lastHostAddress,
+                    )
+                }
                 // Erase last is only valid while the same computer is still connected.
                 if (connected == null || (previousHost != null && previousHost != connected.hostName)) {
                     invalidateErase()
@@ -184,7 +195,10 @@ class MurmrService : LifecycleService() {
         lastPartialAt = now
         muteTones()
         _ui.update {
-            it.copy(phase = PttPhase.LISTENING, partial = "", level = 0f, deliveredChars = 0, error = null, timing = null)
+            it.copy(
+                phase = PttPhase.LISTENING, partial = "", level = 0f, deliveredChars = 0,
+                error = null, timing = null, notice = null,
+            )
         }
         stt.start()
     }
@@ -362,6 +376,74 @@ class MurmrService : LifecycleService() {
         }
     }
 
+    // ---- Keycaps (macros) ------------------------------------------------------------------
+
+    private var macroPressedAt = 0L
+
+    /**
+     * Sends keycap [index]'s assignment for the connected computer. Chords go as one press;
+     * text goes through the typer like a dictation. Any send invalidates Erase last, since the
+     * cursor is no longer right after the last dictation.
+     */
+    fun pressMacro(index: Int) {
+        val s = _ui.value
+        if (s.phase != PttPhase.IDLE && s.phase != PttPhase.SENT) return
+        if (!transport.isReady) return
+        val address = s.hostAddress ?: return
+        val now = SystemClock.elapsedRealtime()
+        if (now - macroPressedAt < MACRO_DEBOUNCE_MS) return   // one Enter per double tap, not two
+        macroPressedAt = now
+
+        val cfg = macroStore.configFor(address)
+        val macro = cfg.macros.getOrNull(index) ?: return
+        when (val action = macro.action) {
+            MacroAction.None -> notice("No key assigned. Long-press to set one.")
+            is MacroAction.Key -> sendChord(macro.caption, action.chord)
+            is MacroAction.Shortcut -> {
+                val os = cfg.os
+                if (os == null) notice("Set this computer's OS (tap the computer name) to use ${macro.caption}.")
+                else sendChord(macro.caption, action.preset.resolve(os))
+            }
+            is MacroAction.Text -> sendMacroText(macro.caption, action.text, action.enterAfter)
+        }
+    }
+
+    private fun sendChord(caption: String, chord: KeyChord) {
+        sentReset?.cancel()
+        invalidateErase()
+        lifecycleScope.launch {
+            val ok = transport.sendKey(chord)
+            tick()
+            notice(if (ok) "$caption sent" else "$caption failed: connection dropped")
+        }
+    }
+
+    private fun sendMacroText(caption: String, text: String, enterAfter: Boolean) {
+        sentReset?.cancel()
+        autoClearJob?.cancel()
+        invalidateErase()
+        _ui.update { it.copy(phase = PttPhase.TYPING, partial = text, deliveredChars = 0, error = null, notice = null) }
+        lifecycleScope.launch {
+            val result = transport.sendText(text) { n -> _ui.update { it.copy(deliveredChars = n) } }
+            var ok = !result.aborted
+            if (ok && enterAfter) ok = transport.sendKey(KeyChord(dev.murmr.app.macros.Keys.ENTER, 0))
+            tick()
+            _ui.update {
+                it.copy(
+                    phase = PttPhase.IDLE,
+                    partial = "",
+                    deliveredChars = 0,
+                    lastTyped = result.delivered.trimEnd(),
+                    notice = if (ok) "$caption sent" else "$caption interrupted: connection dropped",
+                )
+            }
+        }
+    }
+
+    private fun notice(text: String) {
+        _ui.update { it.copy(notice = text) }
+    }
+
     /** The user touched the transcript: restart the auto-clear countdown if one is running. */
     fun touchTranscript() {
         if (autoClearJob?.isActive == true) startAutoClear()
@@ -494,5 +576,8 @@ class MurmrService : LifecycleService() {
 
         /** How long the "Typed" confirmation stays before the phase returns to IDLE. */
         const val SENT_HOLD_MS = 1_800L
+
+        /** Keycap presses closer than this are one press: a double tap on Enter sends one Enter. */
+        const val MACRO_DEBOUNCE_MS = 250L
     }
 }

@@ -39,6 +39,8 @@ internal object Palette {
 
     val buttonText = Color(0xFF032E2F)
     val buttonTextShadow = Color(0xFF92DDCB)
+    /** Keycap symbol and caption colour (`.macro-key` in the mockup). */
+    val keyText = Color(0xFF062F30)
     val lampOff = Color(0xFF294D48)
     val lampReady = Color(0xFF91EFD4)
     val lampListening = Color(0xFFBDFFE9)

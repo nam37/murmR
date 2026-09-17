@@ -2,6 +2,7 @@ package dev.murmr.app.hid
 
 import dev.murmr.app.transport.Capabilities
 import dev.murmr.app.transport.DeliveryResult
+import dev.murmr.app.transport.KeyChord
 import dev.murmr.app.transport.Transport
 import kotlinx.coroutines.delay
 import java.text.Normalizer
@@ -23,7 +24,7 @@ class TextTyper(
     private val keyDelayMs: Long = 8,
 ) : Transport {
 
-    override val capabilities = Capabilities(text = true)
+    override val capabilities = Capabilities(text = true, keys = true)
 
     override val isReady: Boolean get() = keyboard.isConnected
 
@@ -58,6 +59,9 @@ class TextTyper(
         delay(keyDelayMs)
         return true
     }
+
+    override suspend fun sendKey(chord: KeyChord): Boolean =
+        press(KeyStroke(chord.usage, chord.modifiers))
 
     override suspend fun eraseChars(count: Int, onProgress: (erased: Int) -> Unit): Int {
         var erased = 0

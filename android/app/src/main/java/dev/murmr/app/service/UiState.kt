@@ -28,6 +28,10 @@ data class UiState(
     val hid: HidKeyboard.State = HidKeyboard.State.Starting,
     /** Name of the most recently connected computer, kept for display while disconnected. */
     val lastHost: String? = null,
+    /** Bluetooth address of the connected computer, or null; keys per-computer settings. */
+    val hostAddress: String? = null,
+    /** Address of the most recently connected computer, so its keys can be edited offline. */
+    val lastHostAddress: String? = null,
     val phase: PttPhase = PttPhase.IDLE,
     /** Live transcript while listening, or the text being typed. */
     val partial: String = "",
@@ -44,4 +48,6 @@ data class UiState(
     val canErase: Boolean = false,
     /** Characters an erase would send; while ERASING, the total being erased. */
     val eraseCount: Int = 0,
+    /** Transient feedback for the last keycap press, shown with the notice line. */
+    val notice: String? = null,
 )

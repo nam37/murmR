@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.murmr.app.hid.HostDevice
+import dev.murmr.app.macros.HostConfig
 import dev.murmr.app.service.MurmrService
 import dev.murmr.app.service.UiState
 import dev.murmr.app.ui.MainScreen
@@ -73,8 +74,14 @@ class MainActivity : ComponentActivity() {
                 var hosts by remember { mutableStateOf(emptyList<HostDevice>()) }
                 LaunchedEffect(svc) { hosts = svc?.hosts().orEmpty() }
 
-                val settingsStore = (application as MurmrApp).settings
+                val app = application as MurmrApp
+                val settingsStore = app.settings
                 val settings by settingsStore.settings.collectAsStateWithLifecycle()
+                val macroStore = app.macros
+                val hostConfigs by macroStore.hosts.collectAsStateWithLifecycle()
+                // Keys are edited for the connected computer, or the last one while offline.
+                val keysAddress = state.hostAddress ?: state.lastHostAddress
+                val hostConfig = keysAddress?.let { hostConfigs[it] } ?: HostConfig()
 
                 MainScreen(
                     state = state,
@@ -90,6 +97,11 @@ class MainActivity : ComponentActivity() {
                     onPttUp = { svc?.pttUp() },
                     onEraseLast = { svc?.eraseLast() },
                     onTranscriptTouch = { svc?.touchTranscript() },
+                    hostConfig = hostConfig,
+                    canEditKeys = keysAddress != null,
+                    onMacro = { index -> svc?.pressMacro(index) },
+                    onSaveMacro = { index, macro -> keysAddress?.let { macroStore.setMacro(it, index, macro) } },
+                    onHostOs = { os -> keysAddress?.let { macroStore.setOs(it, os) } },
                 )
             }
         }

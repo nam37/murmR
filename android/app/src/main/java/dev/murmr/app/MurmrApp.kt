@@ -3,12 +3,16 @@ package dev.murmr.app
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import dev.murmr.app.macros.MacroStore
 import dev.murmr.app.settings.SettingsStore
 
 class MurmrApp : Application() {
 
     /** App-wide settings, shared by the service and the UI. */
     val settings: SettingsStore by lazy { SettingsStore(this) }
+
+    /** Per-computer configuration: OS profile and keycap assignments. */
+    val macros: MacroStore by lazy { MacroStore(this) }
 
     override fun onCreate() {
         super.onCreate()

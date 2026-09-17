@@ -47,7 +47,8 @@ class HidKeyboard(private val context: Context) {
 
         data class Connecting(val hostName: String) : State
 
-        data class Connected(val hostName: String) : State
+        /** [address] is the host's Bluetooth MAC, the key for per-computer settings. */
+        data class Connected(val hostName: String, val address: String) : State
     }
 
     private val _state = MutableStateFlow<State>(State.Starting)
@@ -231,7 +232,7 @@ class HidKeyboard(private val context: Context) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     host = device
                     capsLockOn = false
-                    _state.value = State.Connected(device.displayName())
+                    _state.value = State.Connected(device.displayName(), device.address)
                 }
                 BluetoothProfile.STATE_CONNECTING -> {
                     _state.value = State.Connecting(device.displayName())
