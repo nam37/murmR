@@ -92,3 +92,5 @@ docs/testing.md.
   for on-phone comparison, not yet approved. Typing cursor advances from real HID send progress
   (`Transport.sendText(onProgress)`), never elapsed time. Haptic tick on mic-open, double tick
   on delivery. Brief SENT phase after typing.
+- 2026-09-17: Dictation is disabled while no computer is connected, matching the mockup. The
+  service enforces it in `pttDown` so Volume Down cannot bypass the disabled button.

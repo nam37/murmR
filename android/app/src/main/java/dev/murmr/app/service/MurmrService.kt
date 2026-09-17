@@ -145,6 +145,11 @@ class MurmrService : LifecycleService() {
     fun pttDown() {
         val phase = _ui.value.phase
         if (phase != PttPhase.IDLE && phase != PttPhase.SENT) return
+        if (!transport.isReady) {
+            // Same rule as the on-screen button, applied here so Volume Down cannot bypass it.
+            _ui.update { it.copy(error = "Connect to a computer first") }
+            return
+        }
         sentReset?.cancel()
         lastPartialAt = SystemClock.elapsedRealtime()
         muteTones()

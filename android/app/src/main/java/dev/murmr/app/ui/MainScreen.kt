@@ -72,6 +72,8 @@ fun MainScreen(
 
     val busy = state.phase == PttPhase.FINISHING || state.phase == PttPhase.TYPING
     val listening = state.phase == PttPhase.LISTENING || state.phase == PttPhase.FINISHING
+    // As in the mockup: no computer, no dictation. A hold that cannot land anywhere is a trap.
+    val connected = state.hid is HidKeyboard.State.Connected
 
     Chassis(chassisArt) {
         Column(
@@ -113,7 +115,7 @@ fun MainScreen(
             }
 
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                TalkButton(phase = state.phase, enabled = !busy, onDown = onPttDown, onUp = onPttUp)
+                TalkButton(phase = state.phase, enabled = connected && !busy, onDown = onPttDown, onUp = onPttUp)
                 Text(
                     "Hold to talk, release to type",
                     color = Palette.instructions,
