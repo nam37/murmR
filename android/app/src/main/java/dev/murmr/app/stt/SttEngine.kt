@@ -14,8 +14,8 @@ sealed interface SttEvent {
      */
     data class Partial(val text: String) : SttEvent
 
-    /** Microphone level while listening, in the recogniser's dB scale (roughly -2 to 10). */
-    data class Level(val rmsDb: Float) : SttEvent
+    /** Microphone level while listening, 0..1. */
+    data class Level(val level: Float) : SttEvent
 
     /** The complete transcript for the hold. Empty when nothing was recognised. */
     data class Final(val text: String) : SttEvent
@@ -48,10 +48,13 @@ enum class OfflinePolicy {
  *
  * The engine owns continuity: one hold is one dictation even if the underlying recogniser wants
  * to stop at every pause. Callers do not restart it or stitch phrases together. Implementations
- * decide their own threading; the platform engine needs the main thread.
+ * decide their own threading; the platform engines need the main thread.
  */
 interface SttEngine {
     val events: SharedFlow<SttEvent>
+
+    /** Changeable at runtime; takes effect the next time a recogniser has to be created. */
+    var offlinePolicy: OfflinePolicy
 
     fun start()
 

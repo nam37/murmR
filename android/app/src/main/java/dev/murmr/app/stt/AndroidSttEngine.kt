@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 /**
- * [SttEngine] backed by the platform SpeechRecognizer.
+ * [SttEngine] backed by the platform SpeechRecognizer, which owns the microphone.
  *
  * This engine owns *continuity* for one hold. A single [start]..[stop] is one continuous
  * dictation even though the platform recogniser wants to end after every pause:
@@ -30,13 +30,10 @@ import kotlinx.coroutines.flow.asSharedFlow
  *    together. This is invisible to callers: either way, [Partial] carries the running
  *    transcript and exactly one [Final] (or [Error]) is emitted per hold.
  *
+ * The restart fallback still costs a short gap and, on most engines, an earcon per restart.
+ * [AudioSourceSttEngine] avoids both by owning the microphone itself.
+ *
  * On Android 13+ it also asks for automatic punctuation and capitalisation ([enableFormatting]).
- *
- * With [OfflinePolicy.REQUIRED] (the default) it only ever uses the on-device recogniser that
- * Android 12+ exposes through `createOnDeviceSpeechRecognizer`, and fails with a clear message
- * when that is unavailable. It never silently falls back to the default engine, because the
- * "prefer offline" extra is a hint the platform is allowed to ignore.
- *
  * All methods must be called on the main thread (a SpeechRecognizer requirement).
  */
 class AndroidSttEngine(
@@ -53,12 +50,8 @@ class AndroidSttEngine(
     private val _events = MutableSharedFlow<SttEvent>(extraBufferCapacity = 32)
     override val events: SharedFlow<SttEvent> = _events.asSharedFlow()
 
-    /**
-     * Changeable at runtime (a setting). Takes effect the next time a recogniser has to be
-     * created: an existing on-device recogniser is kept, since it satisfies both policies.
-     */
     @Volatile
-    var offlinePolicy: OfflinePolicy = offlinePolicy
+    override var offlinePolicy: OfflinePolicy = offlinePolicy
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private var recognizer: SpeechRecognizer? = null
@@ -75,10 +68,6 @@ class AndroidSttEngine(
     private var segmentSeen = false           // the engine actually delivered a segment result
 
     override fun start() {
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            emit(SttEvent.Error("No speech recognition service on this phone"))
-            return
-        }
         val recognizer = obtainRecognizer() ?: return
         committed.setLength(0)
         partial = ""
@@ -208,43 +197,28 @@ class AndroidSttEngine(
 
     private fun obtainRecognizer(): SpeechRecognizer? {
         recognizer?.let { return it }
-        val created = if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-            SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
-        ) {
-            Log.i(TAG, "using on-device recognizer")
-            SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-        } else if (offlinePolicy == OfflinePolicy.REQUIRED) {
-            emit(SttEvent.Error(onDeviceUnavailableMessage()))
-            return null
-        } else {
-            Log.i(TAG, "using default recognizer; offline preferred but not guaranteed")
-            SpeechRecognizer.createSpeechRecognizer(context)
+        return when (val result = createPlatformRecognizer(context, offlinePolicy, TAG)) {
+            is RecognizerResult.Ready -> result.recognizer.also {
+                it.setRecognitionListener(listener)
+                recognizer = it
+            }
+            is RecognizerResult.Unavailable -> {
+                emit(SttEvent.Error(result.message))
+                null
+            }
         }
-        created.setRecognitionListener(listener)
-        recognizer = created
-        return created
     }
-
-    private fun onDeviceUnavailableMessage(): String =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            "On-device speech recognition is not available. Install the offline language pack " +
-                "in system speech settings, or allow online recognition."
-        } else {
-            "Android 9 to 11 cannot guarantee on-device recognition. Allow online recognition " +
-                "to use dictation on this phone."
-        }
 
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) = emit(SttEvent.Ready)
         override fun onBeginningOfSpeech() = Unit
-        override fun onRmsChanged(rmsdB: Float) = emit(SttEvent.Level(rmsdB))
+        override fun onRmsChanged(rmsdB: Float) = emit(SttEvent.Level(normalizeRecognizerRms(rmsdB)))
         override fun onBufferReceived(buffer: ByteArray?) = Unit
         override fun onEndOfSpeech() = Unit
         override fun onEvent(eventType: Int, params: Bundle?) = Unit
 
         override fun onPartialResults(partialResults: Bundle?) {
-            val text = bestText(partialResults)
+            val text = bestRecognitionText(partialResults)
             if (text.isNotEmpty()) {
                 partial = text
                 emit(SttEvent.Partial(runningTranscript()))
@@ -254,7 +228,7 @@ class AndroidSttEngine(
         // Non-segmented path: this session ended (a phrase, or the whole thing on stop).
         override fun onResults(results: Bundle?) {
             captureLive = false
-            appendPhrase(bestText(results))
+            appendPhrase(bestRecognitionText(results))
             partial = ""
             if (stopping) finalizeNow() else restartSession()
         }
@@ -262,7 +236,7 @@ class AndroidSttEngine(
         // Segmented path (Android 13+): one phrase within a still-open session.
         override fun onSegmentResults(segmentResults: Bundle) {
             segmentSeen = true
-            appendPhrase(bestText(segmentResults))
+            appendPhrase(bestRecognitionText(segmentResults))
             partial = ""
             emit(SttEvent.Partial(committed.toString()))
         }
@@ -294,9 +268,9 @@ class AndroidSttEngine(
                 }
                 committed.isEmpty() && partial.isEmpty() -> {
                     // Nothing captured and we cannot usefully continue: surface the error.
-                    Log.w(TAG, "STT error $error with nothing captured: ${describe(error)}")
+                    Log.w(TAG, "STT error $error with nothing captured: ${describeSpeechError(error)}")
                     finished = true
-                    emit(SttEvent.Error(describe(error), error))
+                    emit(SttEvent.Error(describeSpeechError(error), error))
                 }
                 else -> {
                     // We have text but capture broke or is looping. Stop trying and keep the
@@ -307,30 +281,9 @@ class AndroidSttEngine(
         }
     }
 
-    private fun bestText(bundle: Bundle?): String =
-        bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
-
     private fun emit(event: SttEvent) {
         // Level events are frequent and disposable; a dropped one is not worth a log line.
         if (!_events.tryEmit(event) && event !is SttEvent.Level) Log.w(TAG, "dropped event $event")
-    }
-
-    private fun describe(code: Int): String = when (code) {
-        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
-        SpeechRecognizer.ERROR_NETWORK -> "Network error"
-        SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
-        SpeechRecognizer.ERROR_SERVER -> "Speech server error"
-        SpeechRecognizer.ERROR_CLIENT -> "Recognizer client error"
-        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech heard"
-        SpeechRecognizer.ERROR_NO_MATCH -> "Could not make out any words"
-        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognizer is busy"
-        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Microphone permission missing"
-        // Constants below were added in API 31; literal values keep minSdk 28 lint quiet.
-        10 -> "Too many requests"                       // ERROR_TOO_MANY_REQUESTS
-        11 -> "Speech service disconnected"             // ERROR_SERVER_DISCONNECTED
-        12 -> "Language not supported"                  // ERROR_LANGUAGE_NOT_SUPPORTED
-        13 -> "Offline language pack not installed"     // ERROR_LANGUAGE_UNAVAILABLE
-        else -> "Speech error $code"
     }
 
     private companion object {

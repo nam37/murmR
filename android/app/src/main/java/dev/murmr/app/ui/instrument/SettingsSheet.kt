@@ -1,5 +1,6 @@
 package dev.murmr.app.ui.instrument
 
+import android.os.Build
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,20 @@ fun SettingsSheet(
             Help(
                 "On-device only is the privacy promise: audio never leaves the phone. Allow online lets " +
                     "Android fall back to its network recogniser when no offline language pack is installed.",
+            )
+            ChoiceRow(
+                label = "Capture",
+                options = listOf(false to "Standard", true to "Continuous (experimental)"),
+                selected = settings.continuousCapture,
+            ) { v -> onSettings { it.copy(continuousCapture = v) } }
+            Help(
+                if (Build.VERSION.SDK_INT >= 33) {
+                    "Continuous: the app records audio itself and streams it to the recogniser, so " +
+                        "recognition cannot stop at a pause and plays no tones. Experimental: if " +
+                        "dictation fails with it on, switch back to Standard."
+                } else {
+                    "Continuous capture needs Android 13 or newer; this phone uses Standard."
+                },
             )
             Help("Volume Down also works as push-to-talk while the app is open.")
 

@@ -33,8 +33,13 @@ data class Settings(
     val offlinePolicy: OfflinePolicy = OfflinePolicy.REQUIRED,
     /** Capture tail after release, in milliseconds. */
     val tailMs: Int = 600,
-    val autoClear: AutoClear = AutoClear.S30,
+    val autoClear: AutoClear = AutoClear.S15,
     val keepAwake: KeepAwake = KeepAwake.WHILE_CONNECTED,
+    /**
+     * Experimental: the app records audio itself and streams it to the recogniser, so the
+     * session cannot end at a pause and plays no tones. Android 13+; engine support varies.
+     */
+    val continuousCapture: Boolean = false,
 ) {
     companion object {
         val TAIL_OPTIONS = listOf(400, 600, 800, 1000)
@@ -60,6 +65,7 @@ class SettingsStore(context: Context) {
             putInt(KEY_TAIL, next.tailMs)
             putString(KEY_AUTO_CLEAR, next.autoClear.name)
             putString(KEY_KEEP_AWAKE, next.keepAwake.name)
+            putBoolean(KEY_CONTINUOUS, next.continuousCapture)
         }
     }
 
@@ -70,6 +76,7 @@ class SettingsStore(context: Context) {
             tailMs = prefs.getInt(KEY_TAIL, d.tailMs),
             autoClear = enumOr(prefs.getString(KEY_AUTO_CLEAR, null), d.autoClear),
             keepAwake = enumOr(prefs.getString(KEY_KEEP_AWAKE, null), d.keepAwake),
+            continuousCapture = prefs.getBoolean(KEY_CONTINUOUS, d.continuousCapture),
         )
     }
 
@@ -82,5 +89,6 @@ class SettingsStore(context: Context) {
         const val KEY_TAIL = "tail_ms"
         const val KEY_AUTO_CLEAR = "auto_clear"
         const val KEY_KEEP_AWAKE = "keep_awake"
+        const val KEY_CONTINUOUS = "continuous_capture"
     }
 }

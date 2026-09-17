@@ -11,7 +11,10 @@ docs/testing.md.
   Android Studio, not the repo root.
 - `android/app/src/main/java/dev/murmr/app/`
   - `hid/` Bluetooth HID keyboard: report descriptor, US key map, `HidKeyboard`, `TextTyper`.
-  - `stt/` `SttEngine` interface, `OfflinePolicy`, `AndroidSttEngine` (platform SpeechRecognizer).
+  - `stt/` `SttEngine` interface, `OfflinePolicy`, `AndroidSttEngine` (platform SpeechRecognizer
+    owning the mic), `AudioSourceSttEngine` (experimental: the app records and streams audio to
+    the recogniser via `EXTRA_AUDIO_SOURCE`, Android 13+), `PlatformRecognizer` (shared
+    recogniser creation under the offline policy).
   - `transport/` `Transport` interface with `Capabilities` and `DeliveryResult`.
   - `service/` `MurmrService` foreground service owning HID, STT, transport, and the PTT state
     machine.
@@ -84,6 +87,10 @@ docs/testing.md.
   invalidates Erase last. Saving in the editor never sends.
 - The talk button hit-tests as a circle (`clip(CircleShape)` before `pointerInput`) because the
   keycaps sit at the corners of the same 282 dp cluster. Keep that order.
+- The service swaps engines from the `continuousCapture` setting only while idle (deferred to
+  the next press otherwise). `AudioSourceSttEngine` is off by default and experimental until a
+  phone confirms the on-device recogniser accepts a supplied stream; a rejected stream surfaces
+  as an error, never a silent fallback. The button says "Hold to talk"; no other text repeats it.
 - `TextTyper` reports exactly what was delivered (`DeliveryResult.delivered`); the UI shows that,
   not the recogniser's text. Preserve this so users can trust the phone display.
 - `MurmrService` is START_NOT_STICKY on purpose (microphone FGS cannot restart from background).
@@ -139,3 +146,10 @@ docs/testing.md.
   sheet. Long-press opens the editor: WYSIWYG preview, caption, Key mode (common keys and
   presets as keycaps, any key plus modifier toggles) or Text mode (snippet, Enter after,
   delivered-text preview), Clear / Cancel / Save. Stored per computer as JSON.
+- 2026-09-17: After the second phone test. Auto-clear default 15 s and the clear plays as the
+  reverse of the typing reveal. Only the button says "Hold to talk". Transcript pins to the
+  bottom while text arrives. Recogniser tones muted on the system stream as well. The pause-
+  stop (the platform recogniser's own endpointing, ~1-2 s) gets a real fix behind an
+  experimental setting: `AudioSourceSttEngine` streams the app's own microphone capture to the
+  recogniser so the session ends only when the pipe closes after the tail; no restarts, no
+  earcons, and the audio path a pre-roll buffer needs later.

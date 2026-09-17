@@ -27,6 +27,7 @@ import dev.murmr.app.macros.MacroStore
 import dev.murmr.app.settings.Settings
 import dev.murmr.app.settings.SettingsStore
 import dev.murmr.app.stt.AndroidSttEngine
+import dev.murmr.app.stt.AudioSourceSttEngine
 import dev.murmr.app.stt.SttEngine
 import dev.murmr.app.stt.SttEvent
 import dev.murmr.app.transport.KeyChord
@@ -73,8 +74,9 @@ class MurmrService : LifecycleService() {
     private val binder = LocalBinder()
 
     private lateinit var keyboard: HidKeyboard
-    private lateinit var engine: AndroidSttEngine
-    private val stt: SttEngine get() = engine
+    private lateinit var stt: SttEngine
+    private var sttEvents: Job? = null
+    private var pendingContinuous: Boolean? = null
     private lateinit var transport: Transport
     private val settingsStore: SettingsStore by lazy { (application as MurmrApp).settings }
     private val macroStore: MacroStore by lazy { (application as MurmrApp).macros }
@@ -114,7 +116,7 @@ class MurmrService : LifecycleService() {
     override fun onCreate() {
         super.onCreate()
         keyboard = HidKeyboard(this)
-        engine = AndroidSttEngine(this, offlinePolicy = settingsStore.settings.value.offlinePolicy)
+        installEngine(settingsStore.settings.value.continuousCapture)
         transport = TextTyper(keyboard)
 
         lifecycleScope.launch {
@@ -138,13 +140,37 @@ class MurmrService : LifecycleService() {
         }
         lifecycleScope.launch {
             settingsStore.settings.collect { s ->
-                engine.offlinePolicy = s.offlinePolicy
+                stt.offlinePolicy = s.offlinePolicy
                 tailMs = s.tailMs.toLong()
+                // Swapping engines mid-hold would lose the hold; defer to the next press.
+                if (_ui.value.phase == PttPhase.IDLE || _ui.value.phase == PttPhase.SENT) {
+                    installEngine(s.continuousCapture)
+                } else {
+                    pendingContinuous = s.continuousCapture
+                }
             }
         }
-        lifecycleScope.launch {
-            stt.events.collect(::onSttEvent)
+    }
+
+    /** Selects the speech engine for the continuous-capture setting; no-op if already right. */
+    private fun installEngine(continuous: Boolean) {
+        pendingContinuous = null
+        val wantAudioSource = continuous && Build.VERSION.SDK_INT >= 33
+        if (::stt.isInitialized && (stt is AudioSourceSttEngine) == wantAudioSource) return
+        val policy = settingsStore.settings.value.offlinePolicy
+        if (::stt.isInitialized) {
+            sttEvents?.cancel()
+            stt.destroy()
         }
+        stt = if (wantAudioSource) {
+            Log.i(TAG, "engine: audio-source (continuous capture)")
+            AudioSourceSttEngine(this, offlinePolicy = policy)
+        } else {
+            Log.i(TAG, "engine: platform")
+            AndroidSttEngine(this, offlinePolicy = policy)
+        }
+        val engine = stt
+        sttEvents = lifecycleScope.launch { engine.events.collect(::onSttEvent) }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -186,6 +212,7 @@ class MurmrService : LifecycleService() {
         }
         sentReset?.cancel()
         autoClearJob?.cancel()
+        pendingContinuous?.let { installEngine(it) }
         invalidateErase()   // a new dictation supersedes the last one
         val now = SystemClock.elapsedRealtime()
         pressedAt = now
@@ -241,7 +268,7 @@ class MurmrService : LifecycleService() {
             is SttEvent.Level -> {
                 val phase = _ui.value.phase
                 if (phase == PttPhase.LISTENING || phase == PttPhase.FINISHING) {
-                    _ui.update { it.copy(level = normalizeLevel(event.rmsDb)) }
+                    _ui.update { it.copy(level = event.level) }
                 }
             }
 
@@ -331,9 +358,6 @@ class MurmrService : LifecycleService() {
             startAutoClear()
         }
     }
-
-    /** Maps the recogniser's dB scale (about -2 to 10) onto 0..1 for the waveform. */
-    private fun normalizeLevel(rmsDb: Float): Float = ((rmsDb + 2f) / 12f).coerceIn(0f, 1f)
 
     // ---- Erase last and auto-clear ---------------------------------------------------------
 
@@ -458,7 +482,17 @@ class MurmrService : LifecycleService() {
             // Never clear mid-dictation or over an unresolved error; those clear on the next hold.
             if ((s.phase == PttPhase.IDLE || s.phase == PttPhase.SENT) && s.error == null) {
                 eraseable = null
-                _ui.update { it.copy(lastTyped = "", partial = "", timing = null, canErase = false, eraseCount = 0) }
+                _ui.update { it.copy(timing = null, notice = null, canErase = false, eraseCount = 0) }
+                // The reverse of the typing reveal: eat the text from the end, quickly, in a
+                // fixed number of steps so long and short dictations clear in the same time.
+                var text = _ui.value.lastTyped
+                val step = maxOf(1, text.length / CLEAR_STEPS)
+                while (text.isNotEmpty()) {
+                    text = text.dropLast(step)
+                    _ui.update { it.copy(lastTyped = text) }
+                    delay(CLEAR_TICK_MS)
+                }
+                _ui.update { it.copy(partial = "") }
             }
         }
     }
@@ -481,23 +515,27 @@ class MurmrService : LifecycleService() {
     // ---- Recogniser tones -------------------------------------------------------------------
 
     /**
-     * Mutes the media stream, where the platform recogniser plays its start/stop earcons, for the
-     * duration of a hold. Best effort: it silences the click and chime, at the cost of muting any
-     * media playback until [restoreTones]. Balanced mute/unmute calls keep the stream's state.
+     * Mutes the streams the platform recogniser may play its start/stop earcons on (media, and
+     * system sonification) for the duration of a hold. Best effort: it silences the click and
+     * chime at the cost of muting media playback and touch sounds until [restoreTones].
+     * Balanced mute/unmute calls keep each stream's state. The audio-source engine needs none
+     * of this, since the recogniser never opens a microphone session of its own.
      */
     private fun muteTones() {
         if (tonesMuted) return
-        runCatching {
-            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, 0)
-        }.onFailure { Log.w(TAG, "could not mute recogniser tones", it) }
+        for (stream in TONE_STREAMS) {
+            runCatching { audioManager.adjustStreamVolume(stream, AudioManager.ADJUST_MUTE, 0) }
+                .onFailure { Log.w(TAG, "could not mute stream $stream", it) }
+        }
         tonesMuted = true
     }
 
     private fun restoreTones() {
         if (!tonesMuted) return
-        runCatching {
-            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
-        }.onFailure { Log.w(TAG, "could not restore audio", it) }
+        for (stream in TONE_STREAMS) {
+            runCatching { audioManager.adjustStreamVolume(stream, AudioManager.ADJUST_UNMUTE, 0) }
+                .onFailure { Log.w(TAG, "could not restore stream $stream", it) }
+        }
         tonesMuted = false
     }
 
@@ -579,5 +617,14 @@ class MurmrService : LifecycleService() {
 
         /** Keycap presses closer than this are one press: a double tap on Enter sends one Enter. */
         const val MACRO_DEBOUNCE_MS = 250L
+
+        /** Auto-clear animation: the text is eaten from the end in this many steps... */
+        const val CLEAR_STEPS = 40
+
+        /** ...at this interval, so any length clears in about half a second. */
+        const val CLEAR_TICK_MS = 12L
+
+        /** Streams the recogniser's earcons have been observed on. */
+        val TONE_STREAMS = intArrayOf(AudioManager.STREAM_MUSIC, AudioManager.STREAM_SYSTEM)
     }
 }

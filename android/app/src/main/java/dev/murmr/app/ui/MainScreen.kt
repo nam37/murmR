@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -177,22 +178,16 @@ fun MainScreen(
                     // is the next step, so open that sheet instead.
                     onEditMacro = { i -> if (canEditKeys) editingKey = i else sheet = Sheet.CONNECTION },
                 )
-                Text(
-                    "Hold to talk, release to type",
-                    color = Palette.instructions,
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(top = 15.dp),
-                )
                 // Settings lives in the footer as etched caption text, the mockup's own idiom
-                // for its sheet button, so it never competes with the controls.
+                // for its sheet button, so it never competes with the controls. The button
+                // itself says "hold to talk"; nothing else on the screen repeats it.
                 Text(
                     "SETTINGS",
                     color = Palette.hint,
                     fontSize = 10.sp,
                     letterSpacing = 1.5.sp,
                     modifier = Modifier
-                        .padding(top = 2.dp)
+                        .padding(top = 10.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { sheet = Sheet.SETTINGS }
                         .padding(horizontal = 14.dp, vertical = 6.dp),
@@ -277,12 +272,20 @@ private fun ColumnScope.TranscriptContent(state: UiState, onEraseLast: () -> Uni
         shadow = Shadow(Color.Black, Offset(0f, 1f), 1f),
     )
 
+    // While words are arriving or being typed, keep the newest text in view by pinning the
+    // scroll to the bottom whenever the content grows. Once idle, the user can scroll freely.
+    val scroll = rememberScrollState()
+    val follow = state.phase != PttPhase.IDLE
+    LaunchedEffect(scroll.maxValue, follow) {
+        if (follow) scroll.scrollTo(scroll.maxValue)
+    }
+
     Box(
         Modifier
             .weight(1f)
             .fillMaxWidth()
             .padding(top = 20.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(scroll),
     ) {
         when (state.phase) {
             PttPhase.TYPING -> {
@@ -323,8 +326,9 @@ private fun ColumnScope.TranscriptContent(state: UiState, onEraseLast: () -> Uni
                 }
             }
             PttPhase.IDLE, PttPhase.SENT -> {
+                // Empty stays empty: the button already says what to do.
                 val shown = state.lastTyped.ifBlank { state.partial }
-                if (shown.isBlank()) Placeholder("Hold to talk") else Text(shown, style = transcriptStyle)
+                if (shown.isNotBlank()) Text(shown, style = transcriptStyle)
             }
         }
     }

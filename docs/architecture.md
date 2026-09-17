@@ -168,6 +168,15 @@ for free and the service does not change:
   `Final`.
 - **Stop timeout.** If no final arrives within 4 s of `stop()`, the engine forces one from what
   it has, so a hold can never hang.
+- **Continuous capture (experimental, Android 13+).** The platform recogniser's endpointing ends
+  a session after a pause of a second or two; the restart fallback bridges it but costs a gap
+  and, on most engines, an earcon. `AudioSourceSttEngine` removes the cause: the app records
+  16 kHz mono PCM itself and hands the recogniser the read end of a pipe (`EXTRA_AUDIO_SOURCE`,
+  segmented over the stream), so the session lasts exactly until the pipe closes after the
+  capture tail. No endpointing, no restarts, no tones, and the waveform level comes from the
+  app's own samples. Whether an on-device engine accepts a supplied stream is up to that engine,
+  so this ships as a Settings switch, off by default, and a refusal surfaces as an error. It is
+  also the audio path a pre-roll buffer needs to fix a clipped first word.
 
 ### Reliability rules
 
@@ -222,8 +231,11 @@ the mockup's stylesheet values; `ui/instrument/Palette.kt` mirrors it.
   so it is valid only while the cursor still sits after that text. It disappears on a new
   dictation, a disconnect, a host change, or when the transcript auto-clears.
 - **Transcript auto-clear**: the phone's display clears a configurable time after a dictation
-  (default 30 s; 15, 60, or never). The countdown restarts when the transcript is touched and
-  never fires mid-dictation or over an unresolved error. The computer's text is untouched.
+  (default 15 s; 30, 60, or never), playing as the reverse of the typing reveal: the text is
+  eaten from the end in a fixed number of steps, about half a second for any length. The
+  countdown restarts when the transcript is touched and never fires mid-dictation or over an
+  unresolved error. The computer's text is untouched. While text is arriving or being typed the
+  panel pins to its bottom edge so the newest words are always visible; once idle it scrolls.
 - **Settings**: app-wide settings (capture tail, on-device-only recognition, auto-clear,
   keep-awake) live in a Settings sheet opened from an etched footer button, the mockup's own
   idiom for its sheet, or from the connection sheet. Per-computer settings stay in the

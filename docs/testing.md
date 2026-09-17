@@ -42,6 +42,7 @@ Record once per run:
 | 50f | Double-tap Enter quickly | debounce: exactly one Enter |
 | 50g | Long-press a keycap, assign a text snippet with Enter after, tap it | editor, text macro, trailing Enter |
 | 50h | Tap a keycap mid-hold | inert: no keystroke interleaves with dictation |
+| 51 | Settings: Capture = Continuous, then cases 11-20 again | audio-source engine: does the Pixel accept a supplied stream; no pause-stop, no click, one session per hold |
 
 ## Record per dictation
 
