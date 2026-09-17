@@ -188,12 +188,7 @@ class AudioSourceSttEngine(
 
     // ---- Result plumbing --------------------------------------------------------------------
 
-    private fun appendPhrase(text: String) {
-        val t = text.trim()
-        if (t.isEmpty()) return
-        if (committed.isNotEmpty()) committed.append(' ')
-        committed.append(t)
-    }
+    private fun appendPhrase(text: String) = committed.appendPhrase(text)
 
     private fun runningTranscript(): String = when {
         partial.isBlank() -> committed.toString()

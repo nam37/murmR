@@ -176,3 +176,8 @@ docs/testing.md.
   Android 13+. The capture tail no longer extends on late partials for the audio-source engine
   (they are buffered audio catching up, not speech). Typing speed is a setting: Careful 8 ms,
   Normal 4 ms (default), Fast 2 ms per key report.
+- 2026-09-17: Segment joins (`stt/Transcript.kt`) lower a segment's first letter when the text
+  so far does not end a sentence, except "I", its contractions, and acronyms. The formatter
+  capitalises every segment start; mid-sentence pauses were producing ", But" and "The". A name
+  at a mid-sentence pause loses its capital; accepted. Word-level errors (crossload, writes)
+  are recogniser accuracy and belong to the roadmap's opt-in cleanup pass, not to join logic.
