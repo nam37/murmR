@@ -83,8 +83,12 @@ class MurmrService : LifecycleService() {
     /** Append a space after each utterance so consecutive dictations do not run together. */
     var appendTrailingSpace = true
 
-    // State of the current hold. Reset in pttDown().
+    // State of the current hold. Reset in pttDown(). Timestamps feed the timing log/line.
+    private var pressedAt = 0L
+    private var readyAt = 0L
     private var releasedAt = 0L
+    private var stoppedAt = 0L
+    private var finalAt = 0L
     private var lastPartialAt = 0L
     private var graceJob: Job? = null
     private var sentReset: Job? = null
@@ -151,9 +155,16 @@ class MurmrService : LifecycleService() {
             return
         }
         sentReset?.cancel()
-        lastPartialAt = SystemClock.elapsedRealtime()
+        val now = SystemClock.elapsedRealtime()
+        pressedAt = now
+        readyAt = 0L
+        stoppedAt = 0L
+        finalAt = 0L
+        lastPartialAt = now
         muteTones()
-        _ui.update { it.copy(phase = PttPhase.LISTENING, partial = "", level = 0f, deliveredChars = 0, error = null) }
+        _ui.update {
+            it.copy(phase = PttPhase.LISTENING, partial = "", level = 0f, deliveredChars = 0, error = null, timing = null)
+        }
         stt.start()
     }
 
@@ -161,21 +172,31 @@ class MurmrService : LifecycleService() {
         if (_ui.value.phase != PttPhase.LISTENING) return
         releasedAt = SystemClock.elapsedRealtime()
         _ui.update { it.copy(phase = PttPhase.FINISHING) }
-        // Grace window: keep the microphone open until the transcript goes quiet, so a word still
-        // being spoken at release is captured. Extends while partials keep arriving, up to a cap.
+        // Capture tail: the recogniser keeps capturing for at least GRACE_MIN_MS after release,
+        // because a pause between partial results is not evidence of acoustic silence. Beyond
+        // that it keeps going while partials are still arriving, up to GRACE_MAX_MS.
         graceJob = lifecycleScope.launch {
-            val cap = SystemClock.elapsedRealtime() + GRACE_MAX_MS
+            delay(GRACE_MIN_MS)
+            val cap = releasedAt + GRACE_MAX_MS
             while (SystemClock.elapsedRealtime() < cap) {
                 if (SystemClock.elapsedRealtime() - lastPartialAt >= GRACE_QUIET_MS) break
                 delay(GRACE_STEP_MS)
             }
+            stoppedAt = SystemClock.elapsedRealtime()
+            Log.i(TAG_TIMING, "release-to-stop ${stoppedAt - releasedAt} ms")
             stt.stop()
         }
     }
 
     private fun onSttEvent(event: SttEvent) {
         when (event) {
-            SttEvent.Ready -> tick()
+            SttEvent.Ready -> {
+                if (readyAt == 0L) {
+                    readyAt = SystemClock.elapsedRealtime()
+                    Log.i(TAG_TIMING, "press-to-ready ${readyAt - pressedAt} ms")
+                }
+                tick()
+            }
 
             is SttEvent.Partial -> {
                 lastPartialAt = SystemClock.elapsedRealtime()
@@ -189,7 +210,16 @@ class MurmrService : LifecycleService() {
                 }
             }
 
-            is SttEvent.Final -> finishWith(event.text)
+            is SttEvent.Final -> {
+                finalAt = SystemClock.elapsedRealtime()
+                Log.i(
+                    TAG_TIMING,
+                    "final: release-to-final ${finalAt - releasedAt} ms, " +
+                        "stop-to-final ${if (stoppedAt > 0) finalAt - stoppedAt else -1} ms, " +
+                        "hold ${releasedAt - pressedAt} ms, ${event.text.length} chars",
+                )
+                finishWith(event.text)
+            }
 
             is SttEvent.Error -> {
                 Log.w(TAG, "STT error ${event.code}: ${event.message}")
@@ -227,7 +257,15 @@ class MurmrService : LifecycleService() {
             val result = transport.sendText(if (appendTrailingSpace) "$text " else text) { delivered ->
                 _ui.update { it.copy(deliveredChars = delivered) }
             }
-            Log.i(TAG, "release-to-typed ${SystemClock.elapsedRealtime() - releasedAt} ms, ${result.delivered.length} chars")
+            val typedAt = SystemClock.elapsedRealtime()
+            Log.i(TAG_TIMING, "release-to-typed ${typedAt - releasedAt} ms, ${result.delivered.length} chars")
+            // Shown under the transcript so the numbers are readable without logcat.
+            val timing = buildString {
+                append("Ready ").append(if (readyAt > 0) "${readyAt - pressedAt} ms" else "n/a")
+                append(" · tail ").append(if (stoppedAt > 0) "${stoppedAt - releasedAt} ms" else "n/a")
+                append(" · final +").append(if (stoppedAt > 0 && finalAt > 0) "${finalAt - stoppedAt} ms" else "n/a")
+                append(" · typed ${typedAt - releasedAt} ms after release")
+            }
             val notes = buildList {
                 if (result.aborted) add("Connection dropped while typing")
                 if (result.dropped.isNotEmpty()) {
@@ -243,6 +281,7 @@ class MurmrService : LifecycleService() {
                     deliveredChars = 0,
                     lastTyped = result.delivered.trimEnd(),
                     error = notes.takeIf { n -> n.isNotEmpty() }?.joinToString("\n"),
+                    timing = timing,
                 )
             }
             doubleTick()
@@ -348,13 +387,19 @@ class MurmrService : LifecycleService() {
 
     private companion object {
         const val TAG = "MurmrService"
+
+        /** Dictation timing lines: `adb logcat -s MurmrTiming`. */
+        const val TAG_TIMING = "MurmrTiming"
         const val NOTIFICATION_ID = 1
 
-        /** After release, keep the mic open until this long passes with no new partial. */
+        /** After release, always keep capturing at least this long: the tail of the last word. */
+        const val GRACE_MIN_MS = 600L
+
+        /** Beyond the minimum, stop once this long passes with no new partial. */
         const val GRACE_QUIET_MS = 350L
 
-        /** Hard cap on the grace window, so a noisy room cannot hold the mic open forever. */
-        const val GRACE_MAX_MS = 1_200L
+        /** Hard cap on the tail, so a noisy room cannot hold the mic open forever. */
+        const val GRACE_MAX_MS = 1_500L
 
         /** How often the grace window re-checks for quiet. */
         const val GRACE_STEP_MS = 75L

@@ -55,8 +55,12 @@ docs/testing.md.
   it emits `Partial`s with the whole running transcript and exactly one `Final` per hold. A new
   engine must uphold that contract. Do not push session/restart logic back into the service.
 - PTT rules live in `MurmrService` and docs/architecture.md "Reliability rules": nothing typed
-  mid-hold, a release grace window (350 ms quiet, 1.2 s cap) before stopping the engine, and
-  the media stream muted for the hold to silence recogniser earcons. Keep them.
+  mid-hold, a capture tail after release (600 ms minimum, extended while partials arrive, 1.5 s
+  cap) before stopping the engine, and the media stream muted for the hold to silence
+  recogniser earcons. Keep them.
+- Dictation timing (press-to-ready, release-to-stop, stop-to-final, release-to-typed) is logged
+  under the `MurmrTiming` tag and shown as a line under the transcript after each dictation.
+  It is the instrument for the clipped-speech investigation; do not remove it.
 - `TextTyper` reports exactly what was delivered (`DeliveryResult.delivered`); the UI shows that,
   not the recogniser's text. Preserve this so users can trust the phone display.
 - `MurmrService` is START_NOT_STICKY on purpose (microphone FGS cannot restart from background).
@@ -94,3 +98,10 @@ docs/testing.md.
   on delivery. Brief SENT phase after typing.
 - 2026-09-17: Dictation is disabled while no computer is connected, matching the mockup. The
   service enforces it in `pttDown` so Volume Down cannot bypass the disabled button.
+- 2026-09-17: Batch 1 after macOS test. Timing instrumentation (logcat + on-screen line).
+  Capture tail is now a fixed 600 ms minimum, not partial-cadence-based, because partial
+  results are not evidence of silence. Portrait locked. Screen kept awake while connected or
+  mid-dictation. Logo mark and wordmark both off-white, 20% smaller. Both glass panels are
+  nine-sliced; the original panel's boundaries (22,162,1400,1540 / 98,238,750,890) were
+  verified against its pixels. The mockup's 125% stretch rule is gone: it cropped the tall
+  panel's rims and squashed the strip's.

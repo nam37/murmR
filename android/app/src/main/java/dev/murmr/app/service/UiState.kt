@@ -35,4 +35,6 @@ data class UiState(
     /** Characters of [partial] that have reached the computer so far, while TYPING. */
     val deliveredChars: Int = 0,
     val error: String? = null,
+    /** One-line timing summary of the last dictation (press-to-ready, tail, final, typed). */
+    val timing: String? = null,
 )

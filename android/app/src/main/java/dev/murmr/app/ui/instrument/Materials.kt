@@ -17,11 +17,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -31,9 +31,9 @@ import kotlin.math.roundToInt
 
 /*
  * Surfaces are the approved artwork, not drawings of it (see CLAUDE.md, "Visual target").
- * ORIGINAL variants are the mockup's own assets, presented the way the mockup presents them.
- * The other variants are the production-assets-v1 candidates, offered for on-phone side-by-side
- * comparison as that pack's README asks. Nothing here paints a material procedurally.
+ * ORIGINAL variants are the mockup's own assets. The other variants are the production-assets-v1
+ * candidates, offered for on-phone side-by-side comparison as that pack's README asks. Nothing
+ * here paints a material procedurally.
  */
 
 /** Which artwork paints the chassis. */
@@ -45,14 +45,39 @@ enum class ChassisArt {
     TILED_METAL,
 }
 
-/** Which artwork paints the glass panels. */
+/** Which artwork paints the glass panels. Both are nine-sliced so the rim never distorts. */
 enum class GlassArt {
-    /** Approved mockup panel image, stretched the way the mockup's stylesheet does. */
+    /** Approved mockup panel image. */
     ORIGINAL,
 
-    /** Candidate: blank recessed panel, nine-sliced so corner geometry never distorts. */
-    NINE_SLICE,
+    /** Candidate: the production-assets-v1 blank recessed panel. */
+    CANDIDATE,
 }
+
+/**
+ * Nine-slice geometry for one panel image: source boundaries in image pixels (right and bottom
+ * exclusive) and the on-screen size of the corner regions. Only the flat interior stretches.
+ */
+private class NineSlice(val sx: IntArray, val sy: IntArray, val cornerW: Dp, val cornerH: Dp)
+
+/**
+ * Original glass: boundaries verified against the pixels (rim 32-57 px, corners 77-90 px along
+ * the edges); these sit comfortably inside the flat interior. 140 px source corners at 28 dp.
+ */
+private val ORIGINAL_GLASS = NineSlice(
+    sx = intArrayOf(22, 162, 1400, 1540),
+    sy = intArrayOf(98, 238, 750, 890),
+    cornerW = 28.dp,
+    cornerH = 28.dp,
+)
+
+/** Candidate glass: boundaries from design/production-assets-v1/README.md. */
+private val CANDIDATE_GLASS = NineSlice(
+    sx = intArrayOf(8, 148, 1300, 1440),
+    sy = intArrayOf(88, 218, 860, 990),
+    cornerW = 28.dp,
+    cornerH = 26.dp,
+)
 
 /** Full-screen brushed chassis behind everything else. */
 @Composable
@@ -126,52 +151,36 @@ fun GlassPanel(
 ) {
     val image = when (art) {
         GlassArt.ORIGINAL -> ImageBitmap.imageResource(R.drawable.art_glass_original)
-        GlassArt.NINE_SLICE -> ImageBitmap.imageResource(R.drawable.art_glass_empty)
+        GlassArt.CANDIDATE -> ImageBitmap.imageResource(R.drawable.art_glass_empty)
+    }
+    val slices = when (art) {
+        GlassArt.ORIGINAL -> ORIGINAL_GLASS
+        GlassArt.CANDIDATE -> CANDIDATE_GLASS
     }
     Column(
         modifier
-            .drawBehind {
-                when (art) {
-                    GlassArt.ORIGINAL -> drawStretchedGlass(image)
-                    GlassArt.NINE_SLICE -> drawNineSliceGlass(image)
-                }
-            }
+            .drawBehind { drawNineSlice(image, slices) }
             .padding(contentPadding),
         content = content,
     )
 }
 
-/** The mockup's stylesheet rule for the original panel: `center / 100% 125% no-repeat`. */
-private fun DrawScope.drawStretchedGlass(image: ImageBitmap) {
-    val h = (size.height * 1.25f).roundToInt()
-    val top = ((size.height - h) / 2f).roundToInt()
-    clipRect {
-        drawImage(
-            image,
-            dstOffset = IntOffset(0, top),
-            dstSize = IntSize(size.width.roundToInt(), h),
-        )
-    }
-}
-
 /**
- * Nine-slice per design/production-assets-v1/README.md: source X = [8, 148, 1300, 1440],
- * Y = [88, 218, 860, 990]; corners land at 28 x 26 logical pixels. Only the flat interior is
- * stretched; the painted rim and corners keep their proportions at any panel size.
+ * Draws the nine regions of [image] into this size: corners at their native proportion, edges
+ * stretched along one axis, the interior along both. Corners shrink if the panel is smaller
+ * than two of them, so nothing ever overlaps.
  */
-private fun DrawScope.drawNineSliceGlass(image: ImageBitmap) {
-    val sx = intArrayOf(8, 148, 1300, 1440)
-    val sy = intArrayOf(88, 218, 860, 990)
-    val cw = 28.dp.toPx().coerceAtMost(size.width / 2f)
-    val ch = 26.dp.toPx().coerceAtMost(size.height / 2f)
+private fun DrawScope.drawNineSlice(image: ImageBitmap, s: NineSlice) {
+    val cw = s.cornerW.toPx().coerceAtMost(size.width / 2f)
+    val ch = s.cornerH.toPx().coerceAtMost(size.height / 2f)
     val dx = intArrayOf(0, cw.roundToInt(), (size.width - cw).roundToInt(), size.width.roundToInt())
     val dy = intArrayOf(0, ch.roundToInt(), (size.height - ch).roundToInt(), size.height.roundToInt())
     for (y in 0 until 3) {
         for (x in 0 until 3) {
             drawImage(
                 image,
-                srcOffset = IntOffset(sx[x], sy[y]),
-                srcSize = IntSize(sx[x + 1] - sx[x], sy[y + 1] - sy[y]),
+                srcOffset = IntOffset(s.sx[x], s.sy[y]),
+                srcSize = IntSize(s.sx[x + 1] - s.sx[x], s.sy[y + 1] - s.sy[y]),
                 dstOffset = IntOffset(dx[x], dy[y]),
                 dstSize = IntSize(dx[x + 1] - dx[x], dy[y + 1] - dy[y]),
             )

@@ -103,7 +103,7 @@ fun ConnectionSheet(
             )
             ArtChoice(
                 label = "Glass",
-                options = listOf(GlassArt.ORIGINAL to "Original", GlassArt.NINE_SLICE to "Nine-slice"),
+                options = listOf(GlassArt.ORIGINAL to "Original", GlassArt.CANDIDATE to "New panel"),
                 selected = glassArt,
                 onSelect = onGlassArt,
             )

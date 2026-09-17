@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -74,6 +76,10 @@ fun MainScreen(
     val listening = state.phase == PttPhase.LISTENING || state.phase == PttPhase.FINISHING
     // As in the mockup: no computer, no dictation. A hold that cannot land anywhere is a trap.
     val connected = state.hid is HidKeyboard.State.Connected
+
+    // The phone is held while the user looks at the computer; letting it dim mid-hold would be
+    // worse than the screen cost. Awake while connected or mid-dictation; normal timeout otherwise.
+    KeepScreenOn(connected || state.phase != PttPhase.IDLE)
 
     Chassis(chassisArt) {
         Column(
@@ -227,14 +233,25 @@ private fun ColumnScope.TranscriptContent(state: UiState) {
         }
     }
 
-    val notice = when {
-        state.phase == PttPhase.TYPING ->
+    val notice = when (state.phase) {
+        PttPhase.TYPING ->
             "Typing · ${state.deliveredChars.coerceAtMost(state.partial.length)} / ${state.partial.length} characters"
-        state.error != null -> state.error
-        else -> null
+        PttPhase.IDLE, PttPhase.SENT ->
+            listOfNotNull(state.error, state.timing).joinToString("\n").ifBlank { null }
+        else -> state.error
     }
     if (notice != null) {
         Text(notice, color = Palette.notice, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 14.dp))
+    }
+}
+
+/** Holds the screen awake while [enabled]; the flag is dropped automatically when the view detaches. */
+@Composable
+private fun KeepScreenOn(enabled: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(view, enabled) {
+        view.keepScreenOn = enabled
+        onDispose { view.keepScreenOn = false }
     }
 }
 

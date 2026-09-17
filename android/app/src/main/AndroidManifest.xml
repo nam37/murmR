@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Bluetooth, Android 12+ (runtime permissions). CONNECT: HID profile + paired devices.
          ADVERTISE: making the phone discoverable so the computer can pair to it. -->
@@ -36,10 +37,14 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Murmr">
 
+        <!-- A handheld control: rotation mid-hold is friction, not a feature. Large screens on
+             Android 16+ ignore this once targetSdk reaches 36; phones honour it. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTask">
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait"
+            tools:ignore="DiscouragedApi,LockedOrientationActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

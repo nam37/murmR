@@ -62,13 +62,16 @@ fun Header(
 @Composable
 private fun Brand() {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Mark and wordmark share the chassis off-white: the teal mark lacked contrast on the
+        // phone. Sizes are the mockup's less 20 percent, which read too large on a Pixel 11 Pro.
         Image(
             painter = painterResource(R.drawable.murmr_mark),
             contentDescription = "murmr",
-            modifier = Modifier.size(width = 65.dp, height = 34.dp),
+            modifier = Modifier.size(width = 52.dp, height = 27.dp),
             contentScale = ContentScale.Fit,
+            colorFilter = ColorFilter.tint(Palette.wordmark, BlendMode.SrcIn),
         )
-        Wordmark(Modifier.size(width = 120.dp, height = 22.dp))
+        Wordmark(Modifier.size(width = 96.dp, height = 18.dp))
     }
 }
 

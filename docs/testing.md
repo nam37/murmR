@@ -40,8 +40,11 @@ Record once per run:
 | # | Said | Phone shows (delivered text) | Computer shows | Release-to-text ms | Pass | Notes |
 |---|---|---|---|---|---|---|
 
-Release-to-text is the time from letting go to the last character appearing. Read it from
-logcat (`MurmrService: release-to-typed N ms`) or from a screen recording of both devices.
+Release-to-text is the time from letting go to the last character appearing. After each
+dictation the phone shows a timing line under the transcript: press-to-ready, the capture tail
+after release, how long the final result took after the stop, and release-to-typed. The same
+numbers go to logcat under the `MurmrTiming` tag. Record the line; it tells clipped-start
+(long ready time) from clipped-end (short tail or slow final) without a screen recording.
 
 ## Pass criteria
 

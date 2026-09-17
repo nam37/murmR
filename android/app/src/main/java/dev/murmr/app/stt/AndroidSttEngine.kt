@@ -65,6 +65,7 @@ class AndroidSttEngine(
     private var sessionStartedAt = 0L
     private var restarts = 0
     private var segmentedEnabled = false      // segmented mode still believed to work this hold
+    private var segmentSeen = false           // the engine actually delivered a segment result
 
     override fun start() {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
@@ -78,6 +79,7 @@ class AndroidSttEngine(
         finished = false
         restarts = 0
         segmentedEnabled = attemptSegmentedSession
+        segmentSeen = false
         beginSession(recognizer)
     }
 
@@ -176,6 +178,7 @@ class AndroidSttEngine(
         finished = true
         captureLive = false
         cancelStopTimeout()
+        Log.i(TAG, "hold finalised: ${committed.length} chars, restarts=$restarts, segmentedHonoured=$segmentSeen")
         emit(SttEvent.Final(runningTranscript().trim()))
     }
 
@@ -251,6 +254,7 @@ class AndroidSttEngine(
 
         // Segmented path (Android 13+): one phrase within a still-open session.
         override fun onSegmentResults(segmentResults: Bundle) {
+            segmentSeen = true
             appendPhrase(bestText(segmentResults))
             partial = ""
             emit(SttEvent.Partial(committed.toString()))

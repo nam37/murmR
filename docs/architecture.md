@@ -171,9 +171,14 @@ for free and the service does not change:
 
 ### Reliability rules
 
-- **Release grace window.** On release the microphone stays open until 350 ms pass with no new
-  partial (cap 1.2 s), so a word still being spoken at release is captured, not clipped. The
-  button shows "Finishing" during this window.
+- **Capture tail.** On release the recogniser keeps capturing for at least 600 ms, then
+  continues while partial results are still arriving, up to 1.5 s. The minimum is fixed
+  because a gap between partial results is not evidence of acoustic silence; Android does not
+  guarantee their cadence. The button shows "Finishing" during the tail.
+- **Timing is measured, not guessed.** Each dictation logs press-to-ready, release-to-stop,
+  stop-to-final and release-to-typed under the `MurmrTiming` tag and shows them under the
+  transcript, so clipped speech can be attributed to startup loss, an early stop, or slow
+  results without a debugger attached.
 - **Nothing is typed mid-hold.** The engine emits one `Final` on stop; that is what is typed.
 - **Recogniser tones muted.** The media stream is muted for the duration of a hold, silencing
   the platform's start/stop earcons and any restart click. Best effort, and it also mutes media
@@ -197,8 +202,10 @@ the mockup's stylesheet values; `ui/instrument/Palette.kt` mirrors it.
 
 - **Chassis**: the mockup image, crop-to-cover. Brushed grain is uniform, so cropping is
   invisible and nothing is ever stretched.
-- **Glass panels**: the mockup image, presented with the mockup's own stretch rule so the look
-  matches what was approved.
+- **Glass panels**: the mockup image, nine-sliced with boundaries verified against its pixels
+  (source 22,162,1400,1540 by 98,238,750,890; 28 dp corners), so the rim and corners keep their
+  shape at any panel height. The mockup's own stretch rule was tried first and rejected on the
+  phone: it cropped the tall panel's rims and squashed the strip's.
 - **Talk button**: the two approved masters (idle, lit) cross-fading; mic glyph, ready lamp and
   label are live layers on top, as the asset pack specifies.
 - **Live layers, drawn**: the waveform (fed by the recogniser's level callback) and the glows.
