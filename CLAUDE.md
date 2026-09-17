@@ -171,3 +171,8 @@ docs/testing.md.
   "OS?", tapping it opens the connection sheet with the OS choice on top, and the sheet opens
   by itself the first time a computer connects without a profile (once per computer). The OS
   is still never inferred.
+- 2026-09-17: Continuous capture confirmed on the Pixel 11 Pro against a Mac (event log:
+  one session per hold, press-to-ready ~45 ms, no link drops). It is now the default on
+  Android 13+. The capture tail no longer extends on late partials for the audio-source engine
+  (they are buffered audio catching up, not speech). Typing speed is a setting: Careful 8 ms,
+  Normal 4 ms (default), Fast 2 ms per key report.

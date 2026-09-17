@@ -21,7 +21,8 @@ import java.text.Normalizer
  */
 class TextTyper(
     private val keyboard: HidKeyboard,
-    private val keyDelayMs: Long = 8,
+    /** Pause after each key report. 8 is conservative; 4 is fine on modern hosts. A setting. */
+    @Volatile var keyDelayMs: Long = 8,
 ) : Transport {
 
     override val capabilities = Capabilities(text = true, keys = true)

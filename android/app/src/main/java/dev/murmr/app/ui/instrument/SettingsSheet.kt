@@ -31,6 +31,7 @@ import dev.murmr.app.diag.EventLog
 import dev.murmr.app.settings.AutoClear
 import dev.murmr.app.settings.KeepAwake
 import dev.murmr.app.settings.Settings
+import dev.murmr.app.settings.TypingSpeed
 import dev.murmr.app.stt.OfflinePolicy
 
 /**
@@ -76,19 +77,30 @@ fun SettingsSheet(
             )
             ChoiceRow(
                 label = "Capture",
-                options = listOf(false to "Standard", true to "Continuous (experimental)"),
+                options = listOf(true to "Continuous", false to "Standard"),
                 selected = settings.continuousCapture,
             ) { v -> onSettings { it.copy(continuousCapture = v) } }
             Help(
                 if (Build.VERSION.SDK_INT >= 33) {
                     "Continuous: the app records audio itself and streams it to the recogniser, so " +
-                        "recognition cannot stop at a pause and plays no tones. Experimental: if " +
-                        "dictation fails with it on, switch back to Standard."
+                        "recognition cannot stop at a pause, plays no tones, and the mic opens the " +
+                        "instant you press. If dictation fails with it on, switch to Standard."
                 } else {
                     "Continuous capture needs Android 13 or newer; this phone uses Standard."
                 },
             )
             Help("Volume Down also works as push-to-talk while the app is open.")
+
+            SectionTitle("Typing")
+            ChoiceRow(
+                label = "Typing speed",
+                options = TypingSpeed.entries.map { it to it.label },
+                selected = settings.typingSpeed,
+            ) { v -> onSettings { it.copy(typingSpeed = v) } }
+            Help(
+                "How fast keystrokes are sent to the computer: about 45, 80 or 120 characters a " +
+                    "second. If characters go missing, choose Careful.",
+            )
 
             SectionTitle("Transcript")
             ChoiceRow(

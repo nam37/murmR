@@ -174,9 +174,12 @@ for free and the service does not change:
   16 kHz mono PCM itself and hands the recogniser the read end of a pipe (`EXTRA_AUDIO_SOURCE`,
   segmented over the stream), so the session lasts exactly until the pipe closes after the
   capture tail. No endpointing, no restarts, no tones, and the waveform level comes from the
-  app's own samples. Whether an on-device engine accepts a supplied stream is up to that engine,
-  so this ships as a Settings switch, off by default, and a refusal surfaces as an error. It is
-  also the audio path a pre-roll buffer needs to fix a clipped first word.
+  app's own samples. Whether an on-device engine accepts a supplied stream is up to that engine;
+  the Pixel 11 Pro's does (measured 2026-09-17: one session per hold, mic open within 50 ms of
+  the press), so it is the default on Android 13+, with Standard one switch away and a refusal
+  surfacing as an error. With this engine the capture tail is a fixed duration: its late
+  partials are buffered audio being caught up on, not evidence of speech. It also removes the
+  clipped first word, since audio is buffered from the press while the recogniser starts.
 
 ### Reliability rules
 

@@ -80,7 +80,8 @@ class MurmrService : LifecycleService() {
     private lateinit var stt: SttEngine
     private var sttEvents: Job? = null
     private var pendingContinuous: Boolean? = null
-    private lateinit var transport: Transport
+    private lateinit var typer: TextTyper
+    private val transport: Transport get() = typer
     private val settingsStore: SettingsStore by lazy { (application as MurmrApp).settings }
     private val macroStore: MacroStore by lazy { (application as MurmrApp).macros }
     private val audioManager: AudioManager by lazy { getSystemService(AudioManager::class.java) }
@@ -120,7 +121,7 @@ class MurmrService : LifecycleService() {
         super.onCreate()
         keyboard = HidKeyboard(this)
         installEngine(settingsStore.settings.value.continuousCapture)
-        transport = TextTyper(keyboard)
+        typer = TextTyper(keyboard, keyDelayMs = settingsStore.settings.value.typingSpeed.delayMs)
 
         lifecycleScope.launch {
             keyboard.state.collect { hidState ->
@@ -145,6 +146,7 @@ class MurmrService : LifecycleService() {
             settingsStore.settings.collect { s ->
                 stt.offlinePolicy = s.offlinePolicy
                 tailMs = s.tailMs.toLong()
+                typer.keyDelayMs = s.typingSpeed.delayMs
                 // Swapping engines mid-hold would lose the hold; defer to the next press.
                 if (_ui.value.phase == PttPhase.IDLE || _ui.value.phase == PttPhase.SENT) {
                     installEngine(s.continuousCapture)
@@ -244,10 +246,17 @@ class MurmrService : LifecycleService() {
         // that it keeps going while partials are still arriving, up to GRACE_MAX_MS.
         graceJob = lifecycleScope.launch {
             delay(tailMs)
-            val cap = releasedAt + GRACE_MAX_MS
-            while (SystemClock.elapsedRealtime() < cap) {
-                if (SystemClock.elapsedRealtime() - lastPartialAt >= GRACE_QUIET_MS) break
-                delay(GRACE_STEP_MS)
+            if (stt !is AudioSourceSttEngine) {
+                // Platform engine: it is still capturing during the tail, so partials still
+                // arriving mean speech is still being heard. The audio-source engine captures
+                // on our clock; its late partials are the recogniser catching up on buffered
+                // audio, not new speech, so the fixed tail is exact and extending it only adds
+                // latency (measured: 800-1300 ms tails instead of 600).
+                val cap = releasedAt + GRACE_MAX_MS
+                while (SystemClock.elapsedRealtime() < cap) {
+                    if (SystemClock.elapsedRealtime() - lastPartialAt >= GRACE_QUIET_MS) break
+                    delay(GRACE_STEP_MS)
+                }
             }
             stoppedAt = SystemClock.elapsedRealtime()
             EventLog.log(TAG_TIMING, "release-to-stop ${stoppedAt - releasedAt} ms")

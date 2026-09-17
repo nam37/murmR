@@ -2,6 +2,7 @@ package dev.murmr.app.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
 import androidx.core.content.edit
 import dev.murmr.app.stt.OfflinePolicy
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,18 @@ enum class AutoClear(val seconds: Int?, val label: String) {
     NEVER(null, "Never"),
 }
 
+/** Pause between key reports while typing; sets characters per second. */
+enum class TypingSpeed(val delayMs: Long, val label: String) {
+    /** ~45 chars/s. For hosts that drop keys at higher rates. */
+    CAREFUL(8, "Careful"),
+
+    /** ~80 chars/s. Fine on current Windows and macOS Bluetooth stacks. */
+    NORMAL(4, "Normal"),
+
+    /** ~120 chars/s. Try it; fall back if characters go missing. */
+    FAST(2, "Fast"),
+}
+
 /** App-wide settings. Per-computer settings (OS profile, keys) live elsewhere. */
 data class Settings(
     val offlinePolicy: OfflinePolicy = OfflinePolicy.REQUIRED,
@@ -36,10 +49,13 @@ data class Settings(
     val autoClear: AutoClear = AutoClear.S15,
     val keepAwake: KeepAwake = KeepAwake.WHILE_CONNECTED,
     /**
-     * Experimental: the app records audio itself and streams it to the recogniser, so the
-     * session cannot end at a pause and plays no tones. Android 13+; engine support varies.
+     * The app records audio itself and streams it to the recogniser, so the session cannot end
+     * at a pause, plays no tones, and the mic is open within ~50 ms of the press. Android 13+;
+     * proven on a Pixel 11 Pro, so it is the default there. Engines that refuse a supplied
+     * stream report an error, and Standard is one switch away.
      */
-    val continuousCapture: Boolean = false,
+    val continuousCapture: Boolean = Build.VERSION.SDK_INT >= 33,
+    val typingSpeed: TypingSpeed = TypingSpeed.NORMAL,
 ) {
     companion object {
         val TAIL_OPTIONS = listOf(400, 600, 800, 1000)
@@ -66,6 +82,7 @@ class SettingsStore(context: Context) {
             putString(KEY_AUTO_CLEAR, next.autoClear.name)
             putString(KEY_KEEP_AWAKE, next.keepAwake.name)
             putBoolean(KEY_CONTINUOUS, next.continuousCapture)
+            putString(KEY_TYPING_SPEED, next.typingSpeed.name)
         }
     }
 
@@ -77,6 +94,7 @@ class SettingsStore(context: Context) {
             autoClear = enumOr(prefs.getString(KEY_AUTO_CLEAR, null), d.autoClear),
             keepAwake = enumOr(prefs.getString(KEY_KEEP_AWAKE, null), d.keepAwake),
             continuousCapture = prefs.getBoolean(KEY_CONTINUOUS, d.continuousCapture),
+            typingSpeed = enumOr(prefs.getString(KEY_TYPING_SPEED, null), d.typingSpeed),
         )
     }
 
@@ -90,5 +108,6 @@ class SettingsStore(context: Context) {
         const val KEY_AUTO_CLEAR = "auto_clear"
         const val KEY_KEEP_AWAKE = "keep_awake"
         const val KEY_CONTINUOUS = "continuous_capture"
+        const val KEY_TYPING_SPEED = "typing_speed"
     }
 }

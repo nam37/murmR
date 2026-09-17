@@ -96,3 +96,16 @@ recogniser problem as engine restarts or errors between a press and its release.
 - Result: keyboard registered and connected on the first attempt; on-device recognition
   worked; three consecutive holds typed correctly into a desktop app's text field. No latency
   measured (no USB debugging, so no logcat).
+
+### 2026-09-17, continuous capture on macOS (from the in-app event log)
+
+- Phone: Pixel 11 Pro. Computer: Mac Studio. Build f2b511b, Capture = Continuous.
+- Link: one CONNECTING/CONNECTED pair at start, no drops across three holds.
+- Press-to-ready 41, 46, 49 ms (platform engine: hundreds). One session per hold; final
+  segment ~280 ms after the stream closed.
+- Tail after release 826-1278 ms against a 600 ms setting: the partial-cadence extension was
+  firing on late partials from buffered audio. Fixed after this run: fixed tail for this engine.
+- Typing ~45 chars/s at the 8 ms key pause (2.0 s for 91 chars, 2.8 s for 133). Typing speed
+  became a setting after this run, default ~80 chars/s.
+- The recogniser accepts a supplied audio stream on this phone. Continuous capture became the
+  default on Android 13+ after this run.
