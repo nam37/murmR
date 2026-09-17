@@ -167,3 +167,7 @@ docs/testing.md.
   (gesture no longer keyed on enabled; final waits up to 3 s for the link), and the
   system-stream tone mute from the previous build reverted as the only audio change that
   coincided with the report.
+- 2026-09-17: The "?" on an unresolved shortcut keycap was a dead end. Now: the key reads
+  "OS?", tapping it opens the connection sheet with the OS choice on top, and the sheet opens
+  by itself the first time a computer connects without a profile (once per computer). The OS
+  is still never inferred.

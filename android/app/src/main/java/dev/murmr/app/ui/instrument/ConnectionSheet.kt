@@ -53,6 +53,23 @@ fun ConnectionSheet(
             Text("Computer", style = MaterialTheme.typography.titleLarge)
             Text(connectionLine(hid, lastHost), style = MaterialTheme.typography.bodyMedium)
 
+            // Unset OS profile goes first: it is the one thing the keycaps cannot work without.
+            if (canSetOs && hostOs == null) {
+                Text(
+                    "Which operating system does ${lastHost ?: "this computer"} run? Shortcut keys " +
+                        "such as Paste are pressed differently on each (Ctrl+V or ⌘V), so the app " +
+                        "will not guess.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                ChoiceRow<HostOs?>(
+                    label = "Operating system",
+                    options = HostOs.entries.map { it to it.label },
+                    selected = null,
+                    onSelect = { os -> os?.let(onHostOs) },
+                )
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            }
+
             when (hid) {
                 is HidKeyboard.State.Connected -> {
                     Button(onClick = { onDisconnect(); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
@@ -85,7 +102,7 @@ fun ConnectionSheet(
                 else -> Unit
             }
 
-            if (canSetOs) {
+            if (canSetOs && hostOs != null) {
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))
                 ChoiceRow<HostOs?>(
                     label = "${lastHost ?: "This computer"} runs",

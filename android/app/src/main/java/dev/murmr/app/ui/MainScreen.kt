@@ -97,6 +97,18 @@ fun MainScreen(
 ) {
     var sheet by remember { mutableStateOf(Sheet.NONE) }
     var editingKey by remember { mutableStateOf<Int?>(null) }
+
+    // A computer without an OS profile cannot resolve shortcut keys. The first time one
+    // connects, open the connection sheet (OS choice on top) once, rather than leaving the
+    // user to discover an "OS?" keycap on their own. Never mid-hold.
+    var promptedForOs by rememberSaveable { mutableStateOf(setOf<String>()) }
+    LaunchedEffect(state.hostAddress, hostConfig.os) {
+        val address = state.hostAddress ?: return@LaunchedEffect
+        if (hostConfig.os == null && address !in promptedForOs && state.phase == PttPhase.IDLE) {
+            promptedForOs = promptedForOs + address
+            sheet = Sheet.CONNECTION
+        }
+    }
     var chassisArt by rememberSaveable { mutableStateOf(ChassisArt.ORIGINAL) }
     var glassArt by rememberSaveable { mutableStateOf(GlassArt.ORIGINAL) }
 
@@ -173,7 +185,13 @@ fun MainScreen(
                     os = hostConfig.os,
                     onPttDown = onPttDown,
                     onPttUp = onPttUp,
-                    onMacro = onMacro,
+                    // A shortcut key on a computer with no OS profile cannot be sent; take the
+                    // user to where the OS is chosen instead of just saying so.
+                    onMacro = { i ->
+                        val unresolved = hostConfig.os == null &&
+                            hostConfig.macros.getOrNull(i)?.action is MacroAction.Shortcut
+                        if (unresolved) sheet = Sheet.CONNECTION else onMacro(i)
+                    },
                     // Assignment needs a computer to belong to; with none known yet, pairing
                     // is the next step, so open that sheet instead.
                     onEditMacro = { i -> if (canEditKeys) editingKey = i else sheet = Sheet.CONNECTION },

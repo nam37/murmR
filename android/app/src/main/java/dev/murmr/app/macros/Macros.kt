@@ -91,8 +91,8 @@ enum class Preset(val caption: String, private val letter: Char?, private val pr
         return KeyChord(u, mods)
     }
 
-    /** Keycap symbol for the resolved chord, or a placeholder until the OS is known. */
-    fun symbol(os: HostOs?): String = if (os == null) "?" else chordSymbol(resolve(os), os)
+    /** Keycap symbol for the resolved chord, or "OS?" until the computer's OS is known. */
+    fun symbol(os: HostOs?): String = if (os == null) "OS?" else chordSymbol(resolve(os), os)
 }
 
 /** What a keycap does. */
