@@ -1,5 +1,7 @@
 package dev.murmr.app.ui.instrument
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.os.Build
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -8,16 +10,24 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.murmr.app.BuildConfig
+import dev.murmr.app.diag.EventLog
 import dev.murmr.app.settings.AutoClear
 import dev.murmr.app.settings.KeepAwake
 import dev.murmr.app.settings.Settings
@@ -113,6 +123,27 @@ fun SettingsSheet(
                 onSelect = onGlassArt,
             )
 
+            SectionTitle("Diagnostics")
+            val lines by EventLog.lines.collectAsStateWithLifecycle()
+            val context = LocalContext.current
+            Help(
+                "The last events: Bluetooth link changes, dictation phases, engine sessions and " +
+                    "timings. Copy it and paste it into a bug report.",
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    val clipboard = context.getSystemService(ClipboardManager::class.java)
+                    clipboard.setPrimaryClip(ClipData.newPlainText("murmr log", EventLog.text()))
+                }) { Text("Copy log") }
+                TextButton(onClick = { EventLog.clear() }) { Text("Clear") }
+            }
+            Text(
+                text = lines.takeLast(LOG_PREVIEW_LINES).joinToString("\n").ifEmpty { "(no events yet)" },
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
+            )
+
             SectionTitle("About")
             Text("murmr ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
             Help(
@@ -122,6 +153,8 @@ fun SettingsSheet(
         }
     }
 }
+
+private const val LOG_PREVIEW_LINES = 30
 
 @Composable
 private fun SectionTitle(text: String) {

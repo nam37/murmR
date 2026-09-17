@@ -14,6 +14,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import dev.murmr.app.diag.EventLog
 import androidx.annotation.RequiresApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -120,7 +121,7 @@ class AudioSourceSttEngine(
                 while (capturing) {
                     val n = recorder.read(buffer, 0, buffer.size)
                     if (n < 0) {
-                        Log.w(TAG, "AudioRecord read error $n")
+                        EventLog.log(TAG, "AudioRecord read error $n")
                         break
                     }
                     if (n == 0) continue
@@ -129,7 +130,7 @@ class AudioSourceSttEngine(
                 }
             } catch (e: IOException) {
                 // The recogniser closed its end (finished, cancelled, or rejected the stream).
-                Log.i(TAG, "audio pipe closed by reader: ${e.message}")
+                EventLog.log(TAG, "audio pipe closed by reader: ${e.message}")
             } finally {
                 runCatching { out.close() }   // EOF: the recogniser finalises the last segment
                 runCatching { recorder.stop() }
@@ -206,7 +207,7 @@ class AudioSourceSttEngine(
         capturing = false
         cancelStopTimeout()
         closeReadEnd()
-        Log.i(TAG, "hold finalised: ${committed.length} chars (audio-source engine)")
+        EventLog.log(TAG, "hold finalised: ${committed.length} chars (audio-source engine)")
         emit(SttEvent.Final(runningTranscript().trim()))
     }
 
@@ -217,7 +218,7 @@ class AudioSourceSttEngine(
 
     private val stopTimeoutRunnable = Runnable {
         if (finished) return@Runnable
-        Log.w(TAG, "recogniser did not finish within ${STOP_TIMEOUT_MS}ms of EOF; finalising")
+        EventLog.log(TAG, "recogniser did not finish within ${STOP_TIMEOUT_MS}ms of EOF; finalising")
         recognizer?.cancel()
         finalizeNow()
     }
@@ -285,7 +286,7 @@ class AudioSourceSttEngine(
                 capturing = false
                 finished = true
                 closeReadEnd()
-                Log.w(TAG, "STT error $error with nothing captured: ${describeSpeechError(error)}")
+                EventLog.log(TAG, "STT error $error with nothing captured: ${describeSpeechError(error)}")
                 emit(SttEvent.Error(describeSpeechError(error), error))
             } else {
                 holdText("STT error $error")
@@ -299,11 +300,11 @@ class AudioSourceSttEngine(
      */
     private fun holdText(reason: String) {
         capturing = false
-        Log.w(TAG, "$reason; holding ${committed.length} chars until release")
+        EventLog.log(TAG, "$reason; holding ${committed.length} chars until release")
     }
 
     private fun emit(event: SttEvent) {
-        if (!_events.tryEmit(event) && event !is SttEvent.Level) Log.w(TAG, "dropped event $event")
+        if (!_events.tryEmit(event) && event !is SttEvent.Level) EventLog.log(TAG, "dropped event $event")
     }
 
     /** RMS of a PCM16 chunk mapped to 0..1: -50 dBFS is silence, -10 dBFS is loud speech. */

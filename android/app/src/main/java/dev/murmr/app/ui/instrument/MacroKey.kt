@@ -62,6 +62,7 @@ fun MacroKey(
 ) {
     val currentTap by rememberUpdatedState(onTap)
     val currentLongPress by rememberUpdatedState(onLongPress)
+    val currentEnabled by rememberUpdatedState(enabled)
     val haptics = LocalHapticFeedback.current
 
     var pressed by remember { mutableStateOf(false) }
@@ -85,15 +86,16 @@ fun MacroKey(
             .alpha(if (enabled || !interactive) 1f else 0.45f)
             .then(
                 if (interactive) {
-                    Modifier.pointerInput(enabled) {
+                    // Keyed on Unit so an enabled/disabled flip mid-gesture never restarts it.
+                    Modifier.pointerInput(Unit) {
                         detectTapGestures(
                             onPress = {
-                                if (enabled) pressed = true
+                                if (currentEnabled) pressed = true
                                 tryAwaitRelease()
                                 pressed = false
                             },
                             onTap = {
-                                if (enabled) {
+                                if (currentEnabled) {
                                     flash = true
                                     currentTap()
                                 }

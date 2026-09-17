@@ -54,6 +54,7 @@ fun TalkButton(
     val listening = phase == PttPhase.LISTENING
     val currentDown by rememberUpdatedState(onDown)
     val currentUp by rememberUpdatedState(onUp)
+    val currentEnabled by rememberUpdatedState(enabled)
     val litAlpha by animateFloatAsState(if (listening) 1f else 0f, tween(100), label = "talkArt")
     val desaturated = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0.25f) }) }
     val artFilter = if (enabled) null else desaturated
@@ -67,10 +68,13 @@ fun TalkButton(
             // clip-path). The art is circular, so nothing visible changes.
             .clip(CircleShape)
             .alpha(if (enabled) 1f else 0.65f)
-            .pointerInput(enabled) {
-                if (!enabled) return@pointerInput
+            .pointerInput(Unit) {
                 detectTapGestures(
                     onPress = {
+                        // Enabled is checked at press time, not used as the gesture key: keying
+                        // on it restarted the gesture when the link dropped mid-hold, which
+                        // released the press and ended the dictation.
+                        if (!currentEnabled) return@detectTapGestures
                         currentDown()
                         tryAwaitRelease()
                         currentUp()

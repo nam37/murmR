@@ -11,6 +11,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import dev.murmr.app.diag.EventLog
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -174,13 +175,13 @@ class AndroidSttEngine(
         finished = true
         captureLive = false
         cancelStopTimeout()
-        Log.i(TAG, "hold finalised: ${committed.length} chars, restarts=$restarts, segmentedHonoured=$segmentSeen")
+        EventLog.log(TAG, "hold finalised: ${committed.length} chars, restarts=$restarts, segmentedHonoured=$segmentSeen")
         emit(SttEvent.Final(runningTranscript().trim()))
     }
 
     private val stopTimeoutRunnable = Runnable {
         if (finished) return@Runnable
-        Log.w(TAG, "recogniser did not deliver a final within ${STOP_TIMEOUT_MS}ms; finalising")
+        EventLog.log(TAG, "recogniser did not deliver a final within ${STOP_TIMEOUT_MS}ms; finalising")
         recognizer?.cancel()
         finalizeNow()
     }
@@ -261,21 +262,21 @@ class AndroidSttEngine(
                     // A pause the engine gave up on. If we asked for a segmented session and
                     // still got here, the engine is not honouring it; fall back to restarts.
                     if (segmentedEnabled) {
-                        Log.i(TAG, "segmented session not honoured; using restart fallback")
+                        EventLog.log(TAG, "segmented session not honoured; using restart fallback")
                         segmentedEnabled = false
                     }
                     restartSession()
                 }
                 committed.isEmpty() && partial.isEmpty() -> {
                     // Nothing captured and we cannot usefully continue: surface the error.
-                    Log.w(TAG, "STT error $error with nothing captured: ${describeSpeechError(error)}")
+                    EventLog.log(TAG, "STT error $error with nothing captured: ${describeSpeechError(error)}")
                     finished = true
                     emit(SttEvent.Error(describeSpeechError(error), error))
                 }
                 else -> {
                     // We have text but capture broke or is looping. Stop trying and keep the
                     // text; it will be delivered when the user releases (stop() finalises).
-                    Log.w(TAG, "STT error $error; holding ${committed.length} chars until release")
+                    EventLog.log(TAG, "STT error $error; holding ${committed.length} chars until release")
                 }
             }
         }
@@ -283,7 +284,7 @@ class AndroidSttEngine(
 
     private fun emit(event: SttEvent) {
         // Level events are frequent and disposable; a dropped one is not worth a log line.
-        if (!_events.tryEmit(event) && event !is SttEvent.Level) Log.w(TAG, "dropped event $event")
+        if (!_events.tryEmit(event) && event !is SttEvent.Level) EventLog.log(TAG, "dropped event $event")
     }
 
     private companion object {

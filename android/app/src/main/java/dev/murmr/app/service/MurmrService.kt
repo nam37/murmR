@@ -19,6 +19,7 @@ import androidx.lifecycle.lifecycleScope
 import dev.murmr.app.MainActivity
 import dev.murmr.app.MurmrApp
 import dev.murmr.app.R
+import dev.murmr.app.diag.EventLog
 import dev.murmr.app.hid.HidKeyboard
 import dev.murmr.app.hid.HostDevice
 import dev.murmr.app.hid.TextTyper
@@ -37,8 +38,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Foreground service that owns the moving parts and the push-to-talk state machine:
@@ -163,10 +166,10 @@ class MurmrService : LifecycleService() {
             stt.destroy()
         }
         stt = if (wantAudioSource) {
-            Log.i(TAG, "engine: audio-source (continuous capture)")
+            EventLog.log(TAG, "engine: audio-source (continuous capture)")
             AudioSourceSttEngine(this, offlinePolicy = policy)
         } else {
-            Log.i(TAG, "engine: platform")
+            EventLog.log(TAG, "engine: platform")
             AndroidSttEngine(this, offlinePolicy = policy)
         }
         val engine = stt
@@ -214,6 +217,7 @@ class MurmrService : LifecycleService() {
         autoClearJob?.cancel()
         pendingContinuous?.let { installEngine(it) }
         invalidateErase()   // a new dictation supersedes the last one
+        EventLog.log(TAG, "press")
         val now = SystemClock.elapsedRealtime()
         pressedAt = now
         readyAt = 0L
@@ -233,6 +237,7 @@ class MurmrService : LifecycleService() {
     fun pttUp() {
         if (_ui.value.phase != PttPhase.LISTENING) return
         releasedAt = SystemClock.elapsedRealtime()
+        EventLog.log(TAG, "release after ${releasedAt - pressedAt} ms")
         _ui.update { it.copy(phase = PttPhase.FINISHING) }
         // Capture tail: the recogniser keeps capturing for at least tailMs after release,
         // because a pause between partial results is not evidence of acoustic silence. Beyond
@@ -245,7 +250,7 @@ class MurmrService : LifecycleService() {
                 delay(GRACE_STEP_MS)
             }
             stoppedAt = SystemClock.elapsedRealtime()
-            Log.i(TAG_TIMING, "release-to-stop ${stoppedAt - releasedAt} ms")
+            EventLog.log(TAG_TIMING, "release-to-stop ${stoppedAt - releasedAt} ms")
             stt.stop()
         }
     }
@@ -255,7 +260,7 @@ class MurmrService : LifecycleService() {
             SttEvent.Ready -> {
                 if (readyAt == 0L) {
                     readyAt = SystemClock.elapsedRealtime()
-                    Log.i(TAG_TIMING, "press-to-ready ${readyAt - pressedAt} ms")
+                    EventLog.log(TAG_TIMING, "press-to-ready ${readyAt - pressedAt} ms")
                 }
                 tick()
             }
@@ -284,7 +289,7 @@ class MurmrService : LifecycleService() {
             }
 
             is SttEvent.Error -> {
-                Log.w(TAG, "STT error ${event.code}: ${event.message}")
+                EventLog.log(TAG, "STT error ${event.code}: ${event.message}")
                 graceJob?.cancel()
                 restoreTones()
                 _ui.update { it.copy(phase = PttPhase.IDLE, partial = "", level = 0f, error = event.message) }
@@ -301,26 +306,34 @@ class MurmrService : LifecycleService() {
             _ui.update { it.copy(phase = PttPhase.IDLE, partial = "", level = 0f, error = null) }
             return
         }
-        if (!transport.isReady) {
-            _ui.update {
-                it.copy(
-                    phase = PttPhase.IDLE,
-                    partial = "",
-                    level = 0f,
-                    lastTyped = text,
-                    error = "Not connected to a computer; nothing was typed",
-                )
-            }
-            return
-        }
-
-        _ui.update { it.copy(phase = PttPhase.TYPING, partial = text, level = 0f, deliveredChars = 0, error = null) }
         lifecycleScope.launch {
+            if (!transport.isReady) {
+                // The link can flap for a moment; give it a chance to come back before giving up.
+                EventLog.log(TAG, "final ready but link down; waiting up to $RECONNECT_WAIT_MS ms")
+                _ui.update { it.copy(phase = PttPhase.FINISHING, partial = text, level = 0f) }
+                val back = withTimeoutOrNull(RECONNECT_WAIT_MS) {
+                    keyboard.state.first { it is HidKeyboard.State.Connected }
+                } != null
+                if (!back) {
+                    EventLog.log(TAG, "link did not come back; nothing typed")
+                    _ui.update {
+                        it.copy(
+                            phase = PttPhase.IDLE,
+                            partial = "",
+                            lastTyped = text,
+                            error = "Not connected to a computer; nothing was typed",
+                        )
+                    }
+                    return@launch
+                }
+                EventLog.log(TAG, "link back; typing")
+            }
+            _ui.update { it.copy(phase = PttPhase.TYPING, partial = text, level = 0f, deliveredChars = 0, error = null) }
             val result = transport.sendText(if (appendTrailingSpace) "$text " else text) { delivered ->
                 _ui.update { it.copy(deliveredChars = delivered) }
             }
             val typedAt = SystemClock.elapsedRealtime()
-            Log.i(TAG_TIMING, "release-to-typed ${typedAt - releasedAt} ms, ${result.delivered.length} chars")
+            EventLog.log(TAG_TIMING, "release-to-typed ${typedAt - releasedAt} ms, ${result.delivered.length} chars")
             // Shown under the transcript so the numbers are readable without logcat.
             val timing = buildString {
                 append("Ready ").append(if (readyAt > 0) "${readyAt - pressedAt} ms" else "n/a")
@@ -624,7 +637,14 @@ class MurmrService : LifecycleService() {
         /** ...at this interval, so any length clears in about half a second. */
         const val CLEAR_TICK_MS = 12L
 
-        /** Streams the recogniser's earcons have been observed on. */
-        val TONE_STREAMS = intArrayOf(AudioManager.STREAM_MUSIC, AudioManager.STREAM_SYSTEM)
+        /**
+         * Streams muted during a hold. Only media: muting the system stream was tried and
+         * coincided with a report of Bluetooth link flapping, so it stays out until the event
+         * log clears or convicts it.
+         */
+        val TONE_STREAMS = intArrayOf(AudioManager.STREAM_MUSIC)
+
+        /** How long a finished dictation waits for a dropped link to come back before giving up. */
+        const val RECONNECT_WAIT_MS = 3_000L
     }
 }

@@ -55,6 +55,14 @@ after release, how long the final result took after the stop, and release-to-typ
 numbers go to logcat under the `MurmrTiming` tag. Record the line; it tells clipped-start
 (long ready time) from clipped-end (short tail or slow final) without a screen recording.
 
+## Reporting a problem
+
+Open Settings, scroll to Diagnostics, tap Copy log, and paste the result into the report. It
+holds the last few hundred events with timestamps: every Bluetooth link transition (with the
+computer's name), each press and release, engine sessions and restarts, the timing lines, and
+what was typed or why not. A link problem shows up as CONNECTED/DISCONNECTED pairs; a
+recogniser problem as engine restarts or errors between a press and its release.
+
 ## Pass criteria
 
 - Computer text equals the phone's delivered text for 50 of 50.

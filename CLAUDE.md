@@ -18,6 +18,9 @@ docs/testing.md.
   - `transport/` `Transport` interface with `Capabilities` and `DeliveryResult`.
   - `service/` `MurmrService` foreground service owning HID, STT, transport, and the PTT state
     machine.
+  - `diag/` `EventLog`: in-app ring buffer of link, phase, engine and timing events, copyable
+    from Settings > Diagnostics. Field reports come without logcat; log anything a bug report
+    would need here, not only to `Log`.
   - `settings/` `Settings` (app-wide, persisted in SharedPreferences) and `SettingsStore`,
     owned by `MurmrApp`, read by the service and the UI.
   - `macros/` per-computer keycaps: `Macro`/`MacroAction` (key chord, OS-resolved shortcut
@@ -87,6 +90,11 @@ docs/testing.md.
   invalidates Erase last. Saving in the editor never sends.
 - The talk button hit-tests as a circle (`clip(CircleShape)` before `pointerInput`) because the
   keycaps sit at the corners of the same 282 dp cluster. Keep that order.
+- Gesture handlers on the talk button and keycaps are keyed on `Unit` and read `enabled`
+  through `rememberUpdatedState` at press time. Keying `pointerInput` on `enabled` restarts the
+  gesture when the Bluetooth link flaps mid-hold, which releases the press and kills the
+  dictation. A finished dictation also waits up to 3 s for a dropped link to return before
+  reporting "nothing typed".
 - The service swaps engines from the `continuousCapture` setting only while idle (deferred to
   the next press otherwise). `AudioSourceSttEngine` is off by default and experimental until a
   phone confirms the on-device recogniser accepts a supplied stream; a rejected stream surfaces
@@ -153,3 +161,9 @@ docs/testing.md.
   experimental setting: `AudioSourceSttEngine` streams the app's own microphone capture to the
   recogniser so the session ends only when the pipe closes after the tail; no restarts, no
   earcons, and the audio path a pre-roll buffer needs later.
+- 2026-09-17: Field report of the Bluetooth link flapping mid-hold (PC connect/disconnect
+  sounds, button toggling, dictation cut). Cause unknown. Response: in-app event log with copy
+  (Settings > Diagnostics), every HID state transition logged, holds now survive a link drop
+  (gesture no longer keyed on enabled; final waits up to 3 s for the link), and the
+  system-stream tone mute from the previous build reverted as the only audio change that
+  coincided with the report.

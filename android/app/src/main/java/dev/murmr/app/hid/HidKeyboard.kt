@@ -14,6 +14,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.util.Log
 import androidx.core.content.ContextCompat
+import dev.murmr.app.diag.EventLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -73,7 +74,7 @@ class HidKeyboard(private val context: Context) {
     /** Starts following the Bluetooth adapter and registers the keyboard when it is on. */
     fun start() {
         if (adapter == null) {
-            _state.value = State.Unavailable("This phone has no Bluetooth")
+            transition(State.Unavailable("This phone has no Bluetooth"))
             return
         }
         if (!receiverRegistered) {
@@ -95,7 +96,7 @@ class HidKeyboard(private val context: Context) {
             receiverRegistered = false
         }
         releaseProfile()
-        _state.value = State.Unregistered
+        transition(State.Unregistered)
     }
 
     /** Devices paired with this phone; any of them may be the computer to connect to. */
@@ -111,7 +112,7 @@ class HidKeyboard(private val context: Context) {
 
     private fun connect(device: BluetoothDevice): Boolean {
         val h = hid ?: return false
-        _state.value = State.Connecting(device.displayName())
+        transition(State.Connecting(device.displayName()))
         return h.connect(device)
     }
 
@@ -139,14 +140,14 @@ class HidKeyboard(private val context: Context) {
         val adapter = adapter ?: return
         if (!adapter.isEnabled) {
             // adapterStateReceiver calls us again when Bluetooth turns on.
-            _state.value = State.Unavailable("Bluetooth is off")
+            transition(State.Unavailable("Bluetooth is off"))
             return
         }
         if (hid != null) return
-        _state.value = State.Starting
+        transition(State.Starting)
         val requested = adapter.getProfileProxy(context, profileListener, BluetoothProfile.HID_DEVICE)
         if (!requested) {
-            _state.value = State.Unavailable("This phone does not expose the Bluetooth HID device profile")
+            transition(State.Unavailable("This phone does not expose the Bluetooth HID device profile"))
         }
     }
 
@@ -170,7 +171,7 @@ class HidKeyboard(private val context: Context) {
                 BluetoothAdapter.STATE_TURNING_OFF, BluetoothAdapter.STATE_OFF -> {
                     Log.i(TAG, "Bluetooth off; releasing keyboard")
                     releaseProfile()
-                    _state.value = State.Unavailable("Bluetooth is off")
+                    transition(State.Unavailable("Bluetooth is off"))
                 }
             }
         }
@@ -188,7 +189,7 @@ class HidKeyboard(private val context: Context) {
             hid = null
             host = null
             capsLockOn = false
-            _state.value = State.Unregistered
+            transition(State.Unregistered)
         }
     }
 
@@ -207,42 +208,47 @@ class HidKeyboard(private val context: Context) {
         )
         val ok = hid?.registerApp(sdp, null, qos, context.mainExecutor, callback) ?: false
         if (!ok) {
-            _state.value = State.Unavailable(
-                "Could not register as a HID keyboard (another app may already own the HID profile)"
-            )
+            transition(State.Unavailable("Could not register as a HID keyboard (another app may already own the HID profile)"))
         }
     }
 
     private val callback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
-            Log.i(TAG, "app registered=$registered plugged=${pluggedDevice?.address}")
+            EventLog.log(TAG, "app registered=$registered plugged=${pluggedDevice?.address}")
             if (!registered) {
                 host = null
-                _state.value = State.Unregistered
+                transition(State.Unregistered)
                 return
             }
-            _state.value = State.Registered
+            transition(State.Registered)
             // A host that previously "virtually plugged" this keyboard: reconnect to it.
             if (pluggedDevice != null) connect(pluggedDevice)
         }
 
         override fun onConnectionStateChanged(device: BluetoothDevice, state: Int) {
-            Log.i(TAG, "connection ${device.address} state=$state")
+            val name = when (state) {
+                BluetoothProfile.STATE_CONNECTED -> "CONNECTED"
+                BluetoothProfile.STATE_CONNECTING -> "CONNECTING"
+                BluetoothProfile.STATE_DISCONNECTING -> "DISCONNECTING"
+                BluetoothProfile.STATE_DISCONNECTED -> "DISCONNECTED"
+                else -> "state $state"
+            }
+            EventLog.log(TAG, "link ${device.displayName()} $name")
             when (state) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     host = device
                     capsLockOn = false
-                    _state.value = State.Connected(device.displayName(), device.address)
+                    transition(State.Connected(device.displayName(), device.address))
                 }
                 BluetoothProfile.STATE_CONNECTING -> {
-                    _state.value = State.Connecting(device.displayName())
+                    transition(State.Connecting(device.displayName()))
                 }
                 BluetoothProfile.STATE_DISCONNECTED, BluetoothProfile.STATE_DISCONNECTING -> {
                     val current = host
                     if (current == null || current.address == device.address) {
                         host = null
                         capsLockOn = false
-                        _state.value = if (hid != null) State.Registered else State.Unregistered
+                        transition(if (hid != null) State.Registered else State.Unregistered)
                     }
                 }
             }
@@ -265,10 +271,10 @@ class HidKeyboard(private val context: Context) {
         }
 
         override fun onVirtualCableUnplug(device: BluetoothDevice) {
-            Log.i(TAG, "virtual cable unplug from ${device.address}")
+            EventLog.log(TAG, "virtual cable unplug from ${device.displayName()}")
             host = null
             capsLockOn = false
-            _state.value = State.Registered
+            transition(State.Registered)
         }
     }
 
@@ -280,6 +286,12 @@ class HidKeyboard(private val context: Context) {
     }
 
     private fun BluetoothDevice.displayName(): String = name ?: address
+
+    /** Every state change goes through here so the event log sees the whole link history. */
+    private fun transition(next: State) {
+        if (next != _state.value) EventLog.log(TAG, "state -> $next")
+        _state.value = next
+    }
 
     private companion object {
         const val TAG = "HidKeyboard"
