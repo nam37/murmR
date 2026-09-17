@@ -136,7 +136,11 @@ fun MainScreen(
                 .padding(start = 14.dp, top = 18.dp, end = 14.dp, bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Header(hid = state.hid, lastHost = state.lastHost, onOpenConnection = { sheet = Sheet.CONNECTION })
+            Header(
+                hid = state.hid,
+                onOpenConnection = { sheet = Sheet.CONNECTION },
+                onOpenSettings = { sheet = Sheet.SETTINGS },
+            )
 
             if (permissionsDenied) {
                 Text(
@@ -196,20 +200,8 @@ fun MainScreen(
                     // is the next step, so open that sheet instead.
                     onEditMacro = { i -> if (canEditKeys) editingKey = i else sheet = Sheet.CONNECTION },
                 )
-                // Settings lives in the footer as etched caption text, the mockup's own idiom
-                // for its sheet button, so it never competes with the controls. The button
-                // itself says "hold to talk"; nothing else on the screen repeats it.
-                Text(
-                    "SETTINGS",
-                    color = Palette.hint,
-                    fontSize = 10.sp,
-                    letterSpacing = 1.5.sp,
-                    modifier = Modifier
-                        .padding(top = 10.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { sheet = Sheet.SETTINGS }
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                )
+                // No footer: Settings lives on the status pill's gear, and the button itself
+                // says "hold to talk"; nothing else on the screen repeats it.
             }
         }
     }

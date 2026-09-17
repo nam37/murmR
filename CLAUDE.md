@@ -187,3 +187,7 @@ docs/testing.md.
   the platform's predefined subtle effects (tick, double-click, click) rather than raw buzzes.
   The always-on 12 ms buzz is gone; with continuous capture the recogniser plays no earcons,
   so all feedback is the app's own.
+- 2026-09-17: Settings moved from a footer word to a gear on the status pill (user chose it
+  from five rendered options). The pill is one line, LED plus connection state; the computer's
+  name moved into the connection sheet, which the pill's left half opens. No footer. This
+  deviates from the mockup's two-line pill and footer button, by the user's decision.

@@ -243,9 +243,11 @@ the mockup's stylesheet values; `ui/instrument/Palette.kt` mirrors it.
   unresolved error. The computer's text is untouched. While text is arriving or being typed the
   panel pins to its bottom edge so the newest words are always visible; once idle it scrolls.
 - **Settings**: app-wide settings (capture tail, on-device-only recognition, auto-clear,
-  keep-awake) live in a Settings sheet opened from an etched footer button, the mockup's own
-  idiom for its sheet, or from the connection sheet. Per-computer settings stay in the
-  connection sheet. Settings persist in SharedPreferences (`settings/`).
+  keep-awake, typing speed, feedback cues) live in a Settings sheet opened from the gear on the
+  status pill, or from the connection sheet. The pill is one line, LED and connection state,
+  with the gear behind a divider; the computer's name is in the connection sheet, which the
+  pill's left half opens. There is no footer, so the transcript panel gets the height.
+  Per-computer settings stay in the connection sheet. Settings persist in SharedPreferences.
 - **Keycaps**: four square metal keys (the approved macro masters) at the corners of the
   control deck, defaulting to Enter, Tab, Esc and Paste. A tap sends and lights the key for
   220 ms with a haptic tick; a long-press opens the assignment editor, which works even while

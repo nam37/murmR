@@ -2,15 +2,22 @@ package dev.murmr.app.ui.instrument
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,7 +35,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -38,12 +44,12 @@ import dev.murmr.app.R
 import dev.murmr.app.hid.HidKeyboard
 import kotlin.math.roundToInt
 
-/** Brand on the left, computer connection pill on the right. */
+/** Brand on the left, the status pill on the right. */
 @Composable
 fun Header(
     hid: HidKeyboard.State,
-    lastHost: String?,
     onOpenConnection: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -55,7 +61,7 @@ fun Header(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Brand()
-        StatusPill(hid, lastHost, onOpenConnection)
+        StatusPill(hid, onOpenConnection, onOpenSettings)
     }
 }
 
@@ -90,14 +96,14 @@ private fun Wordmark(modifier: Modifier) {
     }
 }
 
+/**
+ * One line: LED, connection state, a divider, the settings gear. The state is what gets
+ * glanced at; the computer's name is one tap away in the connection sheet. Two tap targets in
+ * one piece of chrome, so the header stays uncrowded and the screen needs no footer.
+ */
 @Composable
-private fun StatusPill(hid: HidKeyboard.State, lastHost: String?, onClick: () -> Unit) {
+private fun StatusPill(hid: HidKeyboard.State, onOpenConnection: () -> Unit, onOpenSettings: () -> Unit) {
     val connected = hid is HidKeyboard.State.Connected
-    val host = when (hid) {
-        is HidKeyboard.State.Connected -> hid.hostName
-        is HidKeyboard.State.Connecting -> hid.hostName
-        else -> lastHost ?: "No computer"
-    }
     val stateText = when (hid) {
         is HidKeyboard.State.Connected -> "Connected"
         is HidKeyboard.State.Connecting -> "Connecting"
@@ -106,16 +112,15 @@ private fun StatusPill(hid: HidKeyboard.State, lastHost: String?, onClick: () ->
         HidKeyboard.State.Starting -> "Starting"
         HidKeyboard.State.Unregistered -> "Not ready"
     }
-    val shape = RoundedCornerShape(19.dp)
+    val radius = 21.dp
     Row(
         Modifier
-            .clip(shape)
-            .clickable(onClick = onClick)
+            .clip(RoundedCornerShape(radius))
             .drawBehind {
                 // The pill is the one chrome element the mockup itself styles in CSS rather than
                 // paints, so it is reproduced from that rule: fill, dark border, inset top
                 // shadow, one-pixel lower highlight.
-                val r = CornerRadius(19.dp.toPx())
+                val r = CornerRadius(radius.toPx())
                 drawRoundRect(Palette.pillBg, cornerRadius = r)
                 drawRoundRect(
                     brush = Brush.verticalGradient(
@@ -128,33 +133,45 @@ private fun StatusPill(hid: HidKeyboard.State, lastHost: String?, onClick: () ->
                 drawRoundRect(Palette.pillBorder, cornerRadius = r, style = Stroke(1.dp.toPx()))
                 drawLine(
                     color = Palette.pillHighlight.copy(alpha = 0.55f),
-                    start = Offset(19.dp.toPx(), size.height - 1f),
-                    end = Offset(size.width - 19.dp.toPx(), size.height - 1f),
+                    start = Offset(radius.toPx(), size.height - 1f),
+                    end = Offset(size.width - radius.toPx(), size.height - 1f),
                     strokeWidth = 1f,
                 )
             }
-            .heightIn(min = 55.dp)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .height(42.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Led(on = connected, size = 14.dp)
-        Column {
-            Text(
-                text = host,
-                color = Palette.pillText,
-                fontSize = 11.sp,
-                lineHeight = 16.sp,
-                letterSpacing = 1.3.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+        Row(
+            Modifier
+                .fillMaxHeight()
+                .clickable(onClick = onOpenConnection)
+                .padding(start = 14.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Led(on = connected, size = 12.dp)
             Text(
                 text = stateText,
-                color = Palette.pillState,
+                color = if (connected) Palette.pillState else Palette.pillText,
                 fontSize = 12.sp,
-                lineHeight = 18.sp,
                 letterSpacing = 0.7.sp,
+            )
+        }
+        // Divider engraved the same way as the rest of the chrome: dark line, light line beside it.
+        Box(Modifier.width(1.dp).height(22.dp).background(Palette.pillBorder))
+        Box(Modifier.width(1.dp).height(22.dp).background(Palette.pillHighlight.copy(alpha = 0.35f)))
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .clickable(onClick = onOpenSettings)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Settings,
+                contentDescription = "Settings",
+                tint = Palette.pillText,
+                modifier = Modifier.size(20.dp),
             )
         }
     }
