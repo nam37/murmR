@@ -1,0 +1,3 @@
+Generated with the built-in image_gen tool.
+
+Edit this exact murmR logo with one small targeted change: make ONLY the teal lowercase m within the upper mR waveform symbol about 15 percent smaller in height and 10 percent narrower, with its bottom aligned to the existing baseline. Preserve the flowing connection into the R and the rounded stroke style, keeping a visually consistent stroke weight. The uppercase teal R must stay the same size and shape. Preserve the flanking sound bars, teal color, charcoal murmR wordmark below (all its letters unchanged), white background, canvas size, and overall arrangement. This is a subtle proportion adjustment to the upper symbol only, not a redesign. Render a single logo.
